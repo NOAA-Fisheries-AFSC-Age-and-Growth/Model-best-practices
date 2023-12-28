@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.1.189">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="author" content="Morgan Arrington">
+
+<title>Best practices for selecting a PLS model calibration data set to optimize predictive accuracy - for Pacific cod</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1.6em;
+  vertical-align: middle;
+}
+</style>
+
+
+<script src="pcod-calibration-selection-report_files/libs/clipboard/clipboard.min.js"></script>
+<script src="pcod-calibration-selection-report_files/libs/quarto-html/quarto.js"></script>
+<script src="pcod-calibration-selection-report_files/libs/quarto-html/popper.min.js"></script>
+<script src="pcod-calibration-selection-report_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="pcod-calibration-selection-report_files/libs/quarto-html/anchor.min.js"></script>
+<link href="pcod-calibration-selection-report_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="pcod-calibration-selection-report_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="pcod-calibration-selection-report_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="pcod-calibration-selection-report_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="pcod-calibration-selection-report_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+
+
+</head>
+
+<body class="fullcontent">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Best practices for selecting a PLS model calibration data set to optimize predictive accuracy - for Pacific cod</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    <div>
+    <div class="quarto-title-meta-heading">Author</div>
+    <div class="quarto-title-meta-contents">
+             <p>Morgan Arrington </p>
+          </div>
+  </div>
+    
+    
+  </div>
+  
+
+</header>
+
+<p>This section of the simulation project is to evaluate best practices for selecting a model calibration data set. Rigorous calibration sample selection is important to evaluate and optimize the predictive capability of PLS models used to estimate fish age from the near infrared spectra of their otoliths. First, I explore three different approaches for selecting calibration samples to evaluate relative predictive capability of PLS models, and then I evaluate optimal sample size for calibration data sets. Here, this is done for Pacific cod.</p>
+<section id="comparing-three-approaches-to-select-calibration-samples" class="level2">
+<h2 class="anchored" data-anchor-id="comparing-three-approaches-to-select-calibration-samples">1. Comparing three approaches to select calibration samples</h2>
+<section id="methods" class="level3">
+<h3 class="anchored" data-anchor-id="methods">Methods</h3>
+<p>I started with the full Bering Sea Pacific cod spectral data set (survey and fishery) from the years 2013-2018. I pre-processed all data with Savitzky-Golay (1st derivative, 17-points) which is our standard pre-processing method.</p>
+<div class="cell">
+
+</div>
+<p>I filtered out data affected by the stray light correction issue that had been scanned between June 2021 - May 2022. I then performed outlier detection and removal based on orthogonal distances (Q) and score distances (Hotelling T^2) past critical limits.</p>
+<p>I split the data into two data sets. One data set (hereinafter referred to as the double read data set) had all double read data (n = 2,292), and the all other data set had just a single read age (hereinafter referred to as “hold out” data) (n = 7,933).</p>
+<p>I then evaluated three different methods for selecting calibration models from the double read data set 1) the agree ages approach: I used just the spectra from otoliths where both the reader and tester agreed on the age. This is based on the assumption that these specimens have the least error in reference ages. 2) Random selection approach: I randomly selected a subset of data for the calibration model. This has been somewhat status quo. 3) Kennard-Stone algorithm approach: I used the Kennard-Stone aglorithm to select representative samples that encompass the full range of spectral variation in our data set.</p>
+<section id="agree-ages-approach" class="level4">
+<h4 class="anchored" data-anchor-id="agree-ages-approach">Agree ages approach</h4>
+<p>When selecting a subset of data for a calibration sample via random sample, there are many different possible combinations depending on the total sample size. Some combinations may, based on random chance, be better or worse at predicting future samples than others. To encompass this range, I resampled with replacement from the specimens where the reader and tester agreed on age (n = 1448) to make 100 simulated data sets. I made 200 paired validation data sets which included any samples in the double read data set not included in each calibration data set. I then fit a model to each calibration set and used it to predict age for each paired validation set (200 models total). I then calculated mean absolute error of the predicted ages vs.&nbsp;reference ages in each validation set to evaluate the predictive accuracy of the model. This resulted in 200 mean absolute error values.</p>
+</section>
+<section id="random-selection-approach" class="level4">
+<h4 class="anchored" data-anchor-id="random-selection-approach">Random selection approach</h4>
+<p>To evaluate the random selection approach for selecting calibration samples, I resampled with replacement from the full double read data set (n = 2292) but with an n = 1448 to be equivalent to the agree ages approach. This was to eliminate variation in model performance due to different calibration sample sizes. This resulted in 100 simulated data sets. I made 200 paired validation data sets which included any samples in the double read data set not included in each calibration data set. I then fit a model to each calibration set and used it to predict age for the paired validation set (200 models total). I calculated mean absolute error of the predicted ages vs.&nbsp;reference ages in each validation set which resulted in 200 mean absolute error values.</p>
+</section>
+<section id="kennard-stone-algorithm-approach" class="level4">
+<h4 class="anchored" data-anchor-id="kennard-stone-algorithm-approach">Kennard-stone algorithm approach</h4>
+<p>To evaluate the Kennard-Stone algorithm for selecting calibration samples, I resampled with replacement from the full double read data set (n = 2292) to generate 200 simulated datasets. I then applied the Kennard-Stone algorithm to each simulated data set to select calibration sets with an n = 1448 to be equivalent to the agree ages approach and the random selection approach. This resulted in 200 simulated calibration sets. I made 200 paried validations sets which included any samples in the double read data set not included in each calibration data set. I then fit a PLS model to each calibration set and used it to predict age for the paired validation set (200 models total). &nbsp;I calculated mean absolute error of the predicted ages vs.&nbsp;reference ages in each validation set which resulted in 200 mean absolute error values.</p>
+<div class="cell">
+<div class="cell-output-display">
+<p><img src="pcod-calibration-selection-report_files/figure-html/unnamed-chunk-2-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+<p>Figure 1. Violin plots (kernal density) comparing mean absolute errors between the three calibration selection approaches.</p>
+</section>
+<section id="application-to-hold-out-data-set" class="level4">
+<h4 class="anchored" data-anchor-id="application-to-hold-out-data-set">Application to hold out data set</h4>
+<p>I then applied the sample calibration sets selected via each method above to the hold out data set (n = 7,933). This was to simulate using a calibration model on “new” incoming data to evaluate performance. Each approach has 200 calibration models fit on 200 simulated data sets that are each being used to predict ages for the hold out data set.</p>
+<div class="cell">
+<div class="cell-output-display">
+<p><img src="pcod-calibration-selection-report_files/figure-html/unnamed-chunk-3-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+<p>Figure 2. Violin plots (kernal density) comparing mean absolute errors between the three calibration selection approaches used to predict ages for the hold out data set. Mean absolute error for each calibration-validation pair are shown as points.</p>
+</section>
+</section>
+<section id="results" class="level3">
+<h3 class="anchored" data-anchor-id="results">Results</h3>
+<p>The results of this simulation suggest that model predictive accuracy (represented by mean absolute error) can vary depending on what samples are included in the model calibration set. Different approaches to selecting these samples have different considerations.</p>
+<p>When models were fit to each simulated calibration data set (each n = 1,448) and used to predict age fo each paired validation set from the double read data set (n = 2,292), the agree ages approach resulted in the lowest predictive accuracy (higher mean absolute error) that the random approach or the Kennard-Stone algorithm (Figure 1). This may be because unlike the random approach or Kennard-Stone approach, the agree ages approach was not able to draw samples from the full double-read data set and therefore was not able to resample any data sets with representation from the full range of variation.</p>
+<p>However, when the same calibration models were used to predict fish ages for the full hold-out data set (n = 7,933), each approach for selecting calibration samples had a comparable range of prediction accuracies. This may be because no calibration samples were drawn from this hold out data set and therefore none of the approaches were able to have an “advantage” by encompassing a wider range of variation. This suggests that in the first case, the Kennard-Stone and random approach may therefore be over-representing their advantage on model predictive accuracy on a truly unseen data set.</p>
+<p>When selecting calibration samples using the agree ages approach or the random approach, you run the risk of randomly selecting samples that will not create a robust calibration model in terms of predictive ability on new data (Figure 1 and 2). The Kennard-Stone algorithm is an approach to selecting a calibration data set that is reproducible. However, as shown here, it can still only predict “future” unseen data as well as the original data set it was applied to. The benefit is you do not risk selecting a poor calibration sample by random chance, and you know you are selecting a calibration sample that represents the full range of variation in the data set (age, collection year, etc.).</p>
+</section>
+</section>
+<section id="evaluating-minimum-sample-size-for-robust-calibration-sets" class="level2">
+<h2 class="anchored" data-anchor-id="evaluating-minimum-sample-size-for-robust-calibration-sets">2. Evaluating minimum sample size for robust calibration sets</h2>
+<section id="methods-1" class="level3">
+<h3 class="anchored" data-anchor-id="methods-1">Methods</h3>
+<p>I used the same data set as above. To evaluate the minimum sample size for a robust calibration model, I applied the same methods as above to evaluate the three different methods for calibration selection but also varied calibration sample sizes from 100 to 1448 (intervals of 500, might increase freq).</p>
+<section id="application-to-paired-validation-sets-from-double-read-data" class="level4">
+<h4 class="anchored" data-anchor-id="application-to-paired-validation-sets-from-double-read-data">Application to paired validation sets from double read data</h4>
+<p>I applied the sample calibration sets selected via each method at each sample size to their paired validation set from the double read data (n = 2292). This was to simulate evaluating a calibration model’s predictive accuracy in a proof-of-concept study. Each approach has 200 calibration models fit on 200 simulated data sets at each sample size.</p>
+<div class="cell">
+<div class="cell-output-display">
+<p><img src="pcod-calibration-selection-report_files/figure-html/unnamed-chunk-4-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+<p>Figure 3. Violin plots (kernal density) comparing mean absolute errors between three calibration selection approaches to predict ages for each paired validation set. This is shown for calibration sample sizes 100 - 1448 at intervals of 500. Each have 200 iterations.</p>
+</section>
+<section id="application-to-a-hold-out-data-set" class="level4">
+<h4 class="anchored" data-anchor-id="application-to-a-hold-out-data-set">Application to a hold out data set</h4>
+<p>I then applied the sample calibration sets selected via each method and each sample size to the hold out data set (n = 7,933). This was to simulate using a calibration model on “new” incoming data to evaluate performance. Each approach has 200 calibration models fit on 200 simulated data sets at each sample size that are each being used to predict ages for the hold out data set.</p>
+<div class="cell">
+<div class="cell-output-display">
+<p><img src="pcod-calibration-selection-report_files/figure-html/unnamed-chunk-5-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+<p>Figure 4. Violin plots (kernal density) comparing mean absolute errors between three calibration selection approaches to predict ages for the hold out data set. This is shown for calibration sample sizes 100 - 1448 at intervals of 500. Each has 200 iterations.</p>
+</section>
+</section>
+<section id="results-1" class="level3">
+<h3 class="anchored" data-anchor-id="results-1">Results</h3>
+<ul>
+<li>Not much gain over n=500</li>
+<li>At the lowest sample size (n=100) in both proof-of-concept study and when applied to a hold out data set: the kennard-stone approach has the most variation in performance and the agree age approach has the least. Why??</li>
+<li>For sample sizes equal to or greater than 500, the kennard-stone approach resulted in higher predictive performance on average in proof-of-concept studies when able to “see” all data. However, when calibration models from all approaches were applied to a hold out data set, methods were fairly comparable in their predictive performance and kennard-stone did not outperform the agree ages or the random selection approaches. This suggests that when kennard-stone is used in proof-of-concept studies and used to draw from the full data set to select a calibration set, one may be over-fitting one’s model and getting overly optimistic results. Better to do CV or something.</li>
+<li>Guidance for sample sizes 500 or greater, if doing proof-of-concept, do CV to get a better idea of predictive ability. If choosing a calibration set for future predictions on incoming data, use Kennard-Stone.</li>
+<li>Guidance for sample sizes less than 500 (?? need help with how to interpret)</li>
+</ul>
+</section>
+</section>
+<section id="exploring-characteristics-of-best-and-worst-calibration-sets-n100" class="level2">
+<h2 class="anchored" data-anchor-id="exploring-characteristics-of-best-and-worst-calibration-sets-n100">3. Exploring characteristics of best and worst calibration sets (n=100)</h2>
+<p>We compared characteristics including age distribution, spatial distribution, collection year, and collection type (survey vs.&nbsp;fishery) between the best performing model calibration data set (that had the highest predictive accuracy on the hold out data set) and the worst performing model calibration data set (had the lowest predictive accuracy on the hold out data set).</p>
+<section id="agree-age-selection-method" class="level3">
+<h3 class="anchored" data-anchor-id="agree-age-selection-method">Agree age selection method</h3>
+<section id="best-calibration-set---age-distribution-spatial-distribution-collection-type-fishery-vs.-survey-n100" class="level4">
+<h4 class="anchored" data-anchor-id="best-calibration-set---age-distribution-spatial-distribution-collection-type-fishery-vs.-survey-n100">Best calibration set - age distribution, spatial distribution, collection type (fishery vs.&nbsp;survey) (n=100)</h4>
+<div class="cell">
+<div class="cell-output-display">
+<p><img src="pcod-calibration-selection-report_files/figure-html/unnamed-chunk-6-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+</section>
+<section id="worst-calibration-sets---age-distribution-spatial-distribution-collection-year-collection-type-n100" class="level4">
+<h4 class="anchored" data-anchor-id="worst-calibration-sets---age-distribution-spatial-distribution-collection-year-collection-type-n100">Worst calibration sets - age distribution, spatial distribution, collection year, collection type (n=100)</h4>
+<div class="cell">
+<div class="cell-output-display">
+<p><img src="pcod-calibration-selection-report_files/figure-html/unnamed-chunk-7-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+</section>
+</section>
+<section id="random-selection-method" class="level3">
+<h3 class="anchored" data-anchor-id="random-selection-method">Random selection method</h3>
+<section id="best-calibration-set---age-distribution-spatial-distribution-collection-year-collection-type-survey-vs.-fishery-n100" class="level4">
+<h4 class="anchored" data-anchor-id="best-calibration-set---age-distribution-spatial-distribution-collection-year-collection-type-survey-vs.-fishery-n100">Best calibration set - age distribution, spatial distribution, collection year, collection type (survey vs.&nbsp;fishery) (n=100)</h4>
+<div class="cell">
+<div class="cell-output-display">
+<p><img src="pcod-calibration-selection-report_files/figure-html/unnamed-chunk-8-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+</section>
+<section id="worst-calibration-sets---age-distribution-spatial-distribution-collection-year-collection-type-survey-vs.-fishery-n100" class="level4">
+<h4 class="anchored" data-anchor-id="worst-calibration-sets---age-distribution-spatial-distribution-collection-year-collection-type-survey-vs.-fishery-n100">Worst calibration sets - age distribution, spatial distribution, collection year, collection type (survey vs.&nbsp;fishery) (n=100)</h4>
+<div class="cell">
+<div class="cell-output-display">
+<p><img src="pcod-calibration-selection-report_files/figure-html/unnamed-chunk-9-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+</section>
+</section>
+<section id="kennard-stone-selection-method" class="level3">
+<h3 class="anchored" data-anchor-id="kennard-stone-selection-method">Kennard-Stone selection method</h3>
+<section id="best-calibration-sets---age-distribution-spatial-distribution-collection-year-collection-type-survey-vs.-fishery-n100" class="level4">
+<h4 class="anchored" data-anchor-id="best-calibration-sets---age-distribution-spatial-distribution-collection-year-collection-type-survey-vs.-fishery-n100">Best calibration sets - age distribution, spatial distribution, collection year, collection type (survey vs.&nbsp;fishery) (n=100)</h4>
+<div class="cell">
+<div class="cell-output-display">
+<p><img src="pcod-calibration-selection-report_files/figure-html/unnamed-chunk-10-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+</section>
+<section id="worst-calibration-sets---age-distribution-spatial-distribution-collection-year-collection-type-survey-vs.-fishery-n100-1" class="level4">
+<h4 class="anchored" data-anchor-id="worst-calibration-sets---age-distribution-spatial-distribution-collection-year-collection-type-survey-vs.-fishery-n100-1">Worst calibration sets - age distribution, spatial distribution, collection year, collection type (survey vs.&nbsp;fishery) (n=100)</h4>
+<div class="cell">
+<div class="cell-output-display">
+<p><img src="pcod-calibration-selection-report_files/figure-html/unnamed-chunk-11-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+</section>
+</section>
+</section>
+<section id="exploring-characteristics-of-best-and-worst-calibration-sets-n1448" class="level2">
+<h2 class="anchored" data-anchor-id="exploring-characteristics-of-best-and-worst-calibration-sets-n1448">4. Exploring characteristics of best and worst calibration sets (n=1,448)</h2>
+<p>We compared characteristics including age distribution, spatial distribution, collection year, and collection type (survey vs.&nbsp;fishery) between the best performing model calibration data set (that had the highest predictive accuracy on the hold out data set) and the worst performing model calibration data set (had the lowest predictive accuracy on the hold out data set).</p>
+<section id="agree-age-selection-method-1" class="level3">
+<h3 class="anchored" data-anchor-id="agree-age-selection-method-1">Agree age selection method</h3>
+<section id="best-calibration-set---age-distribution-spatial-distribution-collection-type-fishery-vs.-survey-n1448" class="level4">
+<h4 class="anchored" data-anchor-id="best-calibration-set---age-distribution-spatial-distribution-collection-type-fishery-vs.-survey-n1448">Best calibration set - age distribution, spatial distribution, collection type (fishery vs.&nbsp;survey) (n=1,448)</h4>
+<div class="cell">
+<div class="cell-output-display">
+<p><img src="pcod-calibration-selection-report_files/figure-html/unnamed-chunk-12-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+</section>
+<section id="worst-calibration-sets---age-distribution-spatial-distribution-collection-year-collection-type-survey-vs.-fishery-n1148" class="level4">
+<h4 class="anchored" data-anchor-id="worst-calibration-sets---age-distribution-spatial-distribution-collection-year-collection-type-survey-vs.-fishery-n1148">Worst calibration sets - age distribution, spatial distribution, collection year, collection type (survey vs.&nbsp;fishery) (n=1,148)</h4>
+<div class="cell">
+<div class="cell-output-display">
+<p><img src="pcod-calibration-selection-report_files/figure-html/unnamed-chunk-13-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+</section>
+</section>
+<section id="random-selection-method-1" class="level3">
+<h3 class="anchored" data-anchor-id="random-selection-method-1">Random selection method</h3>
+<section id="best-calibration-set---age-distribution-spatial-distribution-collection-year-collection-type-survey-vs.-fishery-n1448" class="level4">
+<h4 class="anchored" data-anchor-id="best-calibration-set---age-distribution-spatial-distribution-collection-year-collection-type-survey-vs.-fishery-n1448">Best calibration set - age distribution, spatial distribution, collection year, collection type (survey vs.&nbsp;fishery) (n=1,448)</h4>
+<div class="cell">
+<div class="cell-output-display">
+<p><img src="pcod-calibration-selection-report_files/figure-html/unnamed-chunk-14-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+</section>
+<section id="worst-calibration-sets---aage-distribution-spatial-distribution-collection-year-collection-type-survey-vs.-fishery-n1448" class="level4">
+<h4 class="anchored" data-anchor-id="worst-calibration-sets---aage-distribution-spatial-distribution-collection-year-collection-type-survey-vs.-fishery-n1448">Worst calibration sets - aage distribution, spatial distribution, collection year, collection type (survey vs.&nbsp;fishery) (n=1,448)</h4>
+<div class="cell">
+<div class="cell-output-display">
+<p><img src="pcod-calibration-selection-report_files/figure-html/unnamed-chunk-15-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+</section>
+</section>
+<section id="kennard-stone-selection-method-1" class="level3">
+<h3 class="anchored" data-anchor-id="kennard-stone-selection-method-1">Kennard-Stone selection method</h3>
+<section id="best-calibration-sets---age-distribution-spatial-distribution-collection-year-collection-type-survey-vs.-fishery-n1448" class="level4">
+<h4 class="anchored" data-anchor-id="best-calibration-sets---age-distribution-spatial-distribution-collection-year-collection-type-survey-vs.-fishery-n1448">Best calibration sets - age distribution, spatial distribution, collection year, collection type (survey vs.&nbsp;fishery) (n=1,448)</h4>
+<div class="cell">
+<div class="cell-output-display">
+<p><img src="pcod-calibration-selection-report_files/figure-html/unnamed-chunk-16-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+</section>
+<section id="worst-calibration-sets---age-distribution-spatial-distribution-collection-year-collection-type-survey-vs.-fishery-n1448" class="level4">
+<h4 class="anchored" data-anchor-id="worst-calibration-sets---age-distribution-spatial-distribution-collection-year-collection-type-survey-vs.-fishery-n1448">Worst calibration sets - age distribution, spatial distribution, collection year, collection type (survey vs.&nbsp;fishery) (n=1,448)</h4>
+<div class="cell">
+<div class="cell-output-display">
+<p><img src="pcod-calibration-selection-report_files/figure-html/unnamed-chunk-17-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+</section>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const clipboard = new window.ClipboardJS('.code-copy-button', {
+    target: function(trigger) {
+      return trigger.previousElementSibling;
+    }
+  });
+  clipboard.on('success', function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    setTimeout(function() {
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  });
+  function tippyHover(el, contentFn) {
+    const config = {
+      allowHTML: true,
+      content: contentFn,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start'
+    };
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      return note.innerHTML;
+    });
+  }
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const cites = ref.parentNode.getAttribute('data-cites').split(' ');
+    tippyHover(ref, function() {
+      var popup = window.document.createElement('div');
+      cites.forEach(function(cite) {
+        var citeDiv = window.document.createElement('div');
+        citeDiv.classList.add('hanging-indent');
+        citeDiv.classList.add('csl-entry');
+        var biblioDiv = window.document.getElementById('ref-' + cite);
+        if (biblioDiv) {
+          citeDiv.innerHTML = biblioDiv.innerHTML;
+        }
+        popup.appendChild(citeDiv);
+      });
+      return popup.innerHTML;
+    });
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+</body></html>

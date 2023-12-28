@@ -1,0 +1,1055 @@
+---
+title: "Best practices for selecting a PLS model calibration data set to optimize predictive accuracy - for Pacific cod"
+author: "Morgan Arrington"
+format: docx
+editor: visual
+---
+
+This section of the simulation project is to evaluate best practices for selecting a model calibration data set. Rigorous calibration sample selection is important to evaluate and optimize the predictive capability of PLS models used to estimate fish age from the near infrared spectra of their otoliths. First, I explore three different approaches for selecting calibration samples to evaluate relative predictive capability of PLS models, and then I evaluate optimal sample size for calibration data sets. Here, this is done for Pacific cod.
+
+## 1. Comparing three approaches to select calibration samples
+
+### Methods
+
+I started with the full Bering Sea Pacific cod spectral data set (survey and fishery) from the years 2013-2018. I pre-processed all data with Savitzky-Golay (1st derivative, 17-points) which is our standard pre-processing method.
+
+```{r}
+#| echo: false
+#| warning: false
+library(tidyverse)
+library(rstatix)
+library(gridExtra)
+
+```
+
+I filtered out data affected by the stray light correction issue that had been scanned between June 2021 - May 2022. I then performed outlier detection and removal based on orthogonal distances (Q) and score distances (Hotelling T\^2) past critical limits. This is done by calculating critical limits using a data-driven approach assuming a joint distance that follows a chi-squared distribution (Pomeranstev and Rodionova). Extreme values are values that fall outside a significance level of 0.05 so we expect 5% of objects to be extreme. Outliers were values that fall outside a significance level of 0.01 so we expect 1% of objects to be extreme.
+
+I split the data into two data sets. One data set (hereinafter referred to as the double read data set) had all double read data (n = 2,292), and the all other data set had just a single read age (hereinafter referred to as "hold out" data) (n = 7,933).
+
+I then evaluated three different methods for selecting calibration models from the double read data set 1) the agree ages approach: I used just the spectra from otoliths where both the reader and tester agreed on the age. This is based on the assumption that these specimens have the least error in reference ages. 2) Random selection approach: I randomly selected a subset of data for the calibration model. This has been somewhat status quo. 3) Kennard-Stone algorithm approach: I used the Kennard-Stone aglorithm to select representative samples that encompass the full range of spectral variation in our data set.
+
+#### Agree ages approach
+
+When selecting a subset of data for a calibration sample via random sample, there are many different possible combinations depending on the total sample size. Some combinations may, based on random chance, be better or worse at predicting future samples than others. To encompass this range, I resampled with replacement from the specimens where the reader and tester agreed on age (n = 1448) to make 100 simulated data sets. I made 200 paired validation data sets which included any samples in the double read data set not included in each calibration data set. I then fit a model to each calibration set and used it to predict age for each paired validation set (200 models total). I then calculated mean absolute error of the predicted ages vs. reference ages in each validation set to evaluate the predictive accuracy of the model. This resulted in 200 mean absolute error values.
+
+#### Random selection approach
+
+To evaluate the random selection approach for selecting calibration samples, I resampled with replacement from the full double read data set (n = 2292) but with an n = 1448 to be equivalent to the agree ages approach. This was to eliminate variation in model performance due to different calibration sample sizes. This resulted in 100 simulated data sets. I made 200 paired validation data sets which included any samples in the double read data set not included in each calibration data set. I then fit a model to each calibration set and used it to predict age for the paired validation set (200 models total). I calculated mean absolute error of the predicted ages vs. reference ages in each validation set which resulted in 200 mean absolute error values.
+
+#### Kennard-stone algorithm approach
+
+To evaluate the Kennard-Stone algorithm for selecting calibration samples, I resampled with replacement from the full double read data set (n = 2292) to generate 200 simulated datasets. I then applied the Kennard-Stone algorithm to each simulated data set to select calibration sets with an n = 1448 to be equivalent to the agree ages approach and the random selection approach. This resulted in 200 simulated calibration sets. I made 200 paried validations sets which included any samples in the double read data set not included in each calibration data set. I then fit a PLS model to each calibration set and used it to predict age for the paired validation set (200 models total).  I calculated mean absolute error of the predicted ages vs. reference ages in each validation set which resulted in 200 mean absolute error values.
+
+```{r}
+#| echo: false
+#| warning: false
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_agree_df_100_batch1.rda")
+MAE_agree_df_b1 <- MAE_agree_df_100
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_agree_df_100_batch2.rda")
+MAE_agree_df_b2 <- MAE_agree_df_100
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_rand_df_100_batch1.rda")
+MAE_rand_df_b1 <- MAE_rand_df_100
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_rand_df_100_batch2.rda")
+MAE_rand_df_b2 <- MAE_rand_df_100
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_ks_df_doublereaddat_batch1.rda")
+MAE_ks_df_b1 <- MAE_ks_df_100
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_ks_df_doublereaddat_batch2.rda")
+MAE_ks_df_b2 <- MAE_ks_df_100
+
+MAE_agree <- rbind(MAE_agree_df_b1, MAE_agree_df_b2)%>%
+  mutate(cal_type = "agree")
+
+MAE_rand <- rbind(MAE_rand_df_b1, MAE_rand_df_b2)%>%
+  mutate(cal_type = "random")
+
+MAE_ks <- rbind(MAE_ks_df_b1, MAE_ks_df_b2)%>%
+  mutate(cal_type = "kennard-stone")
+
+# MAE_ks <- data.frame(model_iter = 1, MAE = MAE_ks_df_all, cal_type = "kennard-stone")
+
+MAE_all <- full_join(MAE_agree, MAE_rand, by = c("model_iter", "MAE", "cal_type"))
+
+MAE_all <- full_join(MAE_all, MAE_ks, by = c("model_iter", "MAE", "cal_type"))
+
+MAE_all$cal_type <- factor(MAE_all$cal_type, levels = c("agree", "random", "kennard-stone"))
+
+ggplot(MAE_all, aes(cal_type, MAE))+
+  geom_violin(trim = F)+
+  geom_dotplot(binaxis='y', stackdir='center', dotsize=.5, color = "grey", fill = "grey")+
+  # geom_dotplot(data = MAE_all %>% filter(cal_type == "kennard-stone"), aes(cal_type, MAE), binaxis='y', stackdir='center', dotsize=1)+
+  labs(x = "Calibration selection approach",
+       y = "Mean absolute error of predictions")+
+  theme_classic()
+
+rm(MAE_agree)
+rm(MAE_agree_df_100)
+rm(MAE_agree_df_b1)
+rm(MAE_agree_df_b2)
+rm(MAE_rand)
+rm(MAE_rand_df_100)
+rm(MAE_rand_df_b1)
+rm(MAE_rand_df_b2)
+rm(MAE_ks)
+rm(MAE_ks_df_100)
+rm(MAE_ks_df_b1)
+rm(MAE_ks_df_b2)
+
+```
+
+Figure 1. Violin plots (kernal density) comparing mean absolute errors between the three calibration selection approaches.
+
+#### Application to hold out data set
+
+I then applied the sample calibration sets selected via each method above to the hold out data set (n = 7,933). This was to simulate using a calibration model on "new" incoming data to evaluate performance. Each approach has 200 calibration models fit on 200 simulated data sets that are each being used to predict ages for the hold out data set.
+
+```{r}
+#| echo: false
+#| warning: false
+
+# Load files
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_rand_df_100_ho_batch1.rda")
+MAE_rand_df_ho_b1 <- MAE_rand_df_100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_rand_df_100_ho_batch2.rda")
+MAE_rand_df_ho_b2 <- MAE_rand_df_100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_agree_df_100_ho_batch1.rda")
+MAE_agree_df_ho_b1 <- MAE_agree_df_100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_agree_df_100_ho_batch2.rda")
+MAE_agree_df_ho_b2 <- MAE_agree_df_100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_ks_df_holdout_batch1.rda")
+MAE_ks_df_ho_b1 <- MAE_ks_df_100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_ks_df_holdout_batch2.rda")
+MAE_ks_df_ho_b2 <- MAE_ks_df_100_ho
+
+# Plot error from models used to predict hold out dataset
+MAE_agree_ho <- rbind(MAE_agree_df_ho_b1, MAE_agree_df_ho_b2)%>%
+  mutate(cal_type = "agree")
+
+MAE_rand_ho <- rbind(MAE_rand_df_ho_b1, MAE_rand_df_ho_b2)%>%
+  mutate(cal_type = "random")
+
+MAE_ks_ho <- rbind(MAE_ks_df_ho_b1, MAE_ks_df_ho_b2)%>%
+  mutate(cal_type = "kennard-stone")
+
+# MAE_ks_ho <- data.frame(model_iter = 1, MAE = MAE_ks_df_ho, cal_type = "kennard-stone")
+
+MAE_all_ho <- full_join(MAE_agree_ho, MAE_rand_ho, by =  c("model_iter", "MAE", "cal_type"))
+
+MAE_all_ho <- full_join(MAE_all_ho, MAE_ks_ho, by = c("model_iter", "MAE", "cal_type"))
+
+MAE_all_ho$cal_type <- factor(MAE_all_ho$cal_type, levels = c("agree", "random", "kennard-stone"))
+
+ggplot(MAE_all_ho, aes(cal_type, MAE))+
+  geom_violin(trim = F)+
+  geom_dotplot(binaxis='y', stackdir='center', dotsize=.5, color = "grey", fill = "grey")+
+  # geom_dotplot(data = MAE_all_ho %>% filter(cal_type == "kennard-stone"), aes(cal_type, MAE), binaxis='y', stackdir='center', dotsize=1)+
+  labs(x = "Calibration selection approach",
+       y = "Mean absolute error of predictions")+
+  theme_classic()
+
+rm(MAE_agree_ho)
+rm(MAE_agree_df_ho_100)
+rm(MAE_agree_df_ho_b1)
+rm(MAE_agree_df_ho_b2)
+rm(MAE_rand_ho)
+rm(MAE_rand_df_100_ho)
+rm(MAE_rand_df_ho_b1)
+rm(MAE_rand_df_ho_b2)
+rm(MAE_ks_ho)
+rm(MAE_ks_df_100_ho)
+rm(MAE_ks_df_ho_b1)
+rm(MAE_ks_df_ho_b2)
+
+```
+
+Figure 2. Violin plots (kernal density) comparing mean absolute errors between the three calibration selection approaches used to predict ages for the hold out data set. Mean absolute error for each calibration-validation pair are shown as points.
+
+### Results
+
+The results of this simulation suggest that model predictive accuracy (represented by mean absolute error) can vary depending on what samples are included in the model calibration set. Different approaches to selecting these samples have different considerations.
+
+When models were fit to each simulated calibration data set (each n = 1,448) and used to predict age fo each paired validation set from the double read data set (n = 2,292), the agree ages approach resulted in the lowest predictive accuracy (higher mean absolute error) that the random approach or the Kennard-Stone algorithm (Figure 1). This may be because unlike the random approach or Kennard-Stone approach, the agree ages approach was not able to draw samples from the full double-read data set and therefore was not able to resample any data sets with representation from the full range of variation.
+
+However, when the same calibration models were used to predict fish ages for the full hold-out data set (n = 7,933), each approach for selecting calibration samples had a comparable range of prediction accuracies. This may be because no calibration samples were drawn from this hold out data set and therefore none of the approaches were able to have an "advantage" by encompassing a wider range of variation. This suggests that in the first case, the Kennard-Stone and random approach may therefore be over-representing their advantage on model predictive accuracy on a truly unseen data set.
+
+When selecting calibration samples using the agree ages approach or the random approach, you run the risk of randomly selecting samples that will not create a robust calibration model in terms of predictive ability on new data (Figure 1 and 2). The Kennard-Stone algorithm is an approach to selecting a calibration data set that is reproducible. However, as shown here, it can still only predict "future" unseen data as well as the original data set it was applied to. The benefit is you do not risk selecting a poor calibration sample by random chance, and you know you are selecting a calibration sample that represents the full range of variation in the data set (age, collection year, etc.).
+
+## 2. Evaluating minimum sample size for robust calibration sets
+
+### Methods
+
+I used the same data set as above. To evaluate the minimum sample size for a robust calibration model, I applied the same methods as above to evaluate the three different methods for calibration selection but also varied calibration sample sizes from 100 to 1448 (intervals of 500, might increase freq).
+
+#### Application to paired validation sets from double read data
+
+I applied the sample calibration sets selected via each method at each sample size to their paired validation set from the double read data (n = 2292). This was to simulate evaluating a calibration model's predictive accuracy in a proof-of-concept study. Each approach has 200 calibration models fit on 200 simulated data sets at each sample size.
+
+```{r}
+#| echo: false
+#| warning: false
+#| fig-width: 7
+
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_agree_df_100_batch1.rda")
+MAE_agree_df_b1 <- MAE_agree_df_100
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_agree_df_100_batch2.rda")
+MAE_agree_df_b2 <- MAE_agree_df_100
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_rand_df_100_batch1.rda")
+MAE_rand_df_b1 <- MAE_rand_df_100
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_rand_df_100_batch2.rda")
+MAE_rand_df_b2 <- MAE_rand_df_100
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_ks_df_doublereaddat_batch1.rda")
+MAE_ks_df_b1 <- MAE_ks_df_100
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_ks_df_doublereaddat_batch2.rda")
+MAE_ks_df_b2 <- MAE_ks_df_100
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_agree_df_100_n100_batch1.rda")
+MAE_agree_df_n100_b1 <- MAE_agree_df_100_n100
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_agree_df_100_n100_batch2.rda")
+MAE_agree_df_n100_b2 <- MAE_agree_df_100_n100
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_rand_df_100_n100_batch1.rda")
+MAE_rand_df_n100_b1 <- MAE_rand_df_100_n100
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_rand_df_100_n100_batch2.rda")
+MAE_rand_df_n100_b2 <- MAE_rand_df_100_n100
+
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_ks_df_doublereaddat_n100_batch1.rda")
+MAE_ks_df_n100_b1 <- MAE_ks_df_100_n100
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_ks_df_doublereaddat_n100_batch2.rda")
+MAE_ks_df_n100_b2 <- MAE_ks_df_100_n100
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_rand_df_100_n500_batch1.rda")
+MAE_rand_df_n500_b1 <- MAE_rand_df_100_n500
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_rand_df_100_n500_batch2.rda")
+MAE_rand_df_n500_b2 <- MAE_rand_df_100_n500
+
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_agree_df_100_n500_batch1.rda")
+MAE_agree_df_n500_b1 <- MAE_agree_df_100_n500
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_agree_df_100_n500_batch2.rda")
+MAE_agree_df_n500_b2 <- MAE_agree_df_100_n500
+
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_ks_df_doublereaddat_n500_batch1.rda")
+MAE_ks_df_n500_b1 <- MAE_ks_df_100_n500
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_ks_df_doublereaddat_n500_batch2.rda")
+MAE_ks_df_n500_b2 <- MAE_ks_df_100_n500
+
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_rand_df_100_n1000_batch1.rda")
+MAE_rand_df_n1000_b1 <- MAE_rand_df_100_n1000
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_rand_df_100_n1000_batch2.rda")
+MAE_rand_df_n1000_b2 <- MAE_rand_df_100_n1000
+
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_agree_df_100_n1000_batch1.rda")
+MAE_agree_df_n1000_b1 <- MAE_agree_df_100_n1000
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_agree_df_100_n1000_batch2.rda")
+MAE_agree_df_n1000_b2 <- MAE_agree_df_100_n1000
+
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_ks_df_doublereaddat_n1000_batch1.rda")
+MAE_ks_df_n1000_b1 <- MAE_ks_df_100_n1000
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_ks_df_doublereaddat_n1000_batch2.rda")
+MAE_ks_df_n1000_b2 <- MAE_ks_df_100_n1000
+
+# load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_rand_df_100_n1500_batch1.rda")
+# MAE_rand_df_n1500_b1 <- MAE_rand_df_100_n1500
+# load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_rand_df_100_n1500_batch2.rda")
+# MAE_rand_df_n1500_b2 <- MAE_rand_df_100_n1500
+# 
+# load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_agree_df_100_n1500_batch1.rda")
+# MAE_agree_df_n1500_b1 <- MAE_agree_df_100_n1500
+# load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_agree_df_100_n1500_batch2.rda")
+# MAE_agree_df_n1500_b2 <- MAE_agree_df_100_n1500
+# 
+# load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_ks_df_doublereaddat_n1500_batch1.rda")
+# MAE_ks_df_n1500_b1 <- MAE_ks_df_100_n1500
+# load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_ks_df_doublereaddat_n1500_batch2.rda")
+# MAE_ks_df_n1500_b2 <- MAE_ks_df_100_n1500
+
+# Plot error from models used to predict hold out dataset
+## n = 100
+MAE_agree_100 <- rbind(MAE_agree_df_n100_b1, MAE_agree_df_n100_b1)%>%
+  mutate(cal_type = "agree", sample_size = "100")
+
+MAE_rand_100 <- rbind(MAE_rand_df_n100_b1, MAE_rand_df_n100_b2)%>%
+  mutate(cal_type = "random", sample_size = "100")
+
+MAE_ks_100 <- rbind(MAE_ks_df_n100_b1, MAE_ks_df_n100_b2)%>%
+  mutate(cal_type = "kennard-stone", sample_size = "100")
+
+## n = 500
+MAE_agree_500 <- rbind(MAE_agree_df_n500_b1, MAE_agree_df_n500_b2)%>%
+  mutate(cal_type = "agree", sample_size = "500")
+
+MAE_rand_500 <- rbind(MAE_rand_df_n500_b1, MAE_rand_df_n500_b2)%>%
+  mutate(cal_type = "random", sample_size = "500")
+
+MAE_ks_500 <- rbind(MAE_ks_df_n500_b1, MAE_ks_df_n500_b2)%>%
+  mutate(cal_type = "kennard-stone", sample_size = "500")
+
+## n = 1000
+MAE_agree_1000 <- rbind(MAE_agree_df_n1000_b1, MAE_agree_df_n1000_b2)%>%
+  mutate(cal_type = "agree", sample_size = "1000")
+
+MAE_rand_1000 <- rbind(MAE_rand_df_n1000_b1, MAE_rand_df_n1000_b2)%>%
+  mutate(cal_type = "random", sample_size = "1000")
+
+MAE_ks_1000 <- rbind(MAE_ks_df_n1000_b1, MAE_ks_df_n1000_b2)%>%
+  mutate(cal_type = "kennard-stone", sample_size = "1000")
+
+# # n = 1500
+# MAE_agree_1500 <- rbind(MAE_agree_df_n1500_b1, MAE_agree_df_n1500_b2)%>%
+#   mutate(cal_type = "agree", sample_size = "1500")
+# 
+# MAE_rand_1500 <- rbind(MAE_rand_df_n1500_b1,  MAE_rand_df_n1500_b2)%>%
+#    mutate(cal_type = "random", sample_size = "1500")
+# 
+# MAE_ks_1500 <- rbind(MAE_ks_df_n1500_b1, MAE_ks_df_n1500_b2)%>%
+#    mutate(cal_type = "kennard-stone", sample_size = "1500")
+
+# n = 2298
+MAE_agree_full <- rbind(MAE_agree_df_b1, MAE_agree_df_b2)%>%
+  mutate(cal_type = "agree", sample_size = "full (1448)")
+
+MAE_rand_full<- rbind(MAE_rand_df_b1, MAE_rand_df_b2)%>%
+  mutate(cal_type = "random", sample_size = "full (1448)")
+
+MAE_ks_full <- rbind(MAE_ks_df_b1, MAE_ks_df_b2)%>%
+  mutate(cal_type = "kennard-stone", sample_size = "full (1448)")
+
+# Join them all 
+MAE_all <- full_join(MAE_agree_100, MAE_rand_100, by =  c("model_iter", "MAE", "cal_type", "sample_size"))
+
+MAE_all <- full_join(MAE_all, MAE_ks_100, by = c("model_iter", "MAE", "cal_type", "sample_size"))
+
+MAE_all <- full_join(MAE_all, MAE_agree_500, by =  c("model_iter", "MAE", "cal_type", "sample_size"))
+
+MAE_all <- full_join(MAE_all, MAE_rand_500, by =  c("model_iter", "MAE", "cal_type", "sample_size"))
+
+MAE_all <- full_join(MAE_all, MAE_ks_500, by =  c("model_iter", "MAE", "cal_type", "sample_size"))
+
+MAE_all <- full_join(MAE_all, MAE_agree_1000, by =  c("model_iter", "MAE", "cal_type", "sample_size"))
+
+MAE_all <- full_join(MAE_all, MAE_rand_1000, by =  c("model_iter", "MAE", "cal_type", "sample_size"))
+
+MAE_all <- full_join(MAE_all, MAE_ks_1000, by =  c("model_iter", "MAE", "cal_type", "sample_size"))
+
+# MAE_all <- full_join(MAE_all, MAE_agree_1500, by =  c("model_iter", "MAE", "cal_type", "sample_size"))
+# 
+# MAE_all <- full_join(MAE_all, MAE_rand_1500, by =  c("model_iter", "MAE", "cal_type", "sample_size"))
+# 
+# MAE_all <- full_join(MAE_all, MAE_ks_1500, by =  c("model_iter", "MAE", "cal_type", "sample_size"))
+# 
+# MAE_all <- full_join(MAE_all, MAE_agree_1500, by =  c("model_iter", "MAE", "cal_type", "sample_size"))
+# 
+# MAE_all <- full_join(MAE_all, MAE_rand_1500, by =  c("model_iter", "MAE", "cal_type", "sample_size"))
+# 
+# MAE_all <- full_join(MAE_all, MAE_ks_1500, by =  c("model_iter", "MAE", "cal_type", "sample_size"))
+
+MAE_all <- full_join(MAE_all, MAE_agree_full, by =  c("model_iter", "MAE", "cal_type", "sample_size"))
+
+MAE_all <- full_join(MAE_all, MAE_rand_full, by =  c("model_iter", "MAE", "cal_type", "sample_size"))
+
+MAE_all <- full_join(MAE_all, MAE_ks_full, by =  c("model_iter", "MAE", "cal_type", "sample_size"))
+
+
+MAE_all$cal_type <- factor(MAE_all$cal_type, levels = c("agree", "random", "kennard-stone"))
+
+MAE_all$sample_size <- factor(MAE_all$sample_size, levels = c("100", "500", "1000", "full (1448)"))
+
+ggplot(MAE_all, aes(sample_size, MAE, color = cal_type))+
+  geom_violin(trim = F)+
+  # geom_dotplot(binaxis='y', stackdir='center', dotsize=.1, fill = "grey", position = position_dodge(.9))+
+  scale_color_manual(values = c("grey90", "grey60", "black"))+
+  # geom_dotplot(data = MAE_all_ho %>% filter(cal_type == "kennard-stone"), aes(cal_type, MAE), binaxis='y', stackdir='center', dotsize=1)+
+  labs(x = "Calibration selection approach",
+       y = "Mean absolute error of predictions")+
+  theme_classic()
+
+
+```
+
+Figure 3. Violin plots (kernal density) comparing mean absolute errors between three calibration selection approaches to predict ages for each paired validation set. This is shown for calibration sample sizes 100 - 1448 at intervals of 500. Each have 200 iterations.
+
+#### Application to a hold out data set
+
+I then applied the sample calibration sets selected via each method and each sample size to the hold out data set (n = 7,933). This was to simulate using a calibration model on "new" incoming data to evaluate performance. Each approach has 200 calibration models fit on 200 simulated data sets at each sample size that are each being used to predict ages for the hold out data set.
+
+```{r}
+#| echo: false
+#| warning: false
+#| fig-width: 7
+
+#Load all files
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_agree_df_100_ho_batch1.rda")
+MAE_agree_df_b1 <- MAE_agree_df_100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_agree_df_100_ho_batch2.rda")
+MAE_agree_df_b2 <- MAE_agree_df_100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_rand_df_100_ho_batch1.rda")
+MAE_rand_df_b1 <- MAE_rand_df_100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_rand_df_100_ho_batch2.rda")
+MAE_rand_df_b2 <- MAE_rand_df_100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_ks_df_holdout_batch1.rda")
+MAE_ks_df_b1 <- MAE_ks_df_100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_ks_df_holdout_batch2.rda")
+MAE_ks_df_b2 <- MAE_ks_df_100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_agree_df_100_n100_ho_batch1.rda")
+MAE_agree_df_n100_b1 <- MAE_agree_df_100_n100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_agree_df_100_n100_ho_batch2.rda")
+MAE_agree_df_n100_b2 <- MAE_agree_df_100_n100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_rand_df_100_n100_ho_batch1.rda")
+MAE_rand_df_n100_b1 <- MAE_rand_df_100_n100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_rand_df_100_n100_ho_batch2.rda")
+MAE_rand_df_n100_b2 <- MAE_rand_df_100_n100_ho
+
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_ks_df_n100_holdout_batch1.rda")
+MAE_ks_df_n100_b1 <- MAE_ks_df_100_n100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_ks_df_n100_holdout_batch2.rda")
+MAE_ks_df_n100_b2 <- MAE_ks_df_100_n100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_rand_df_100_n500_ho_batch1.rda")
+MAE_rand_df_n500_b1 <- MAE_rand_df_100_n500_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_rand_df_100_n500_ho_batch2.rda")
+MAE_rand_df_n500_b2 <- MAE_rand_df_100_n500_ho
+
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_agree_df_100_n500_ho_batch1.rda")
+MAE_agree_df_n500_b1 <- MAE_agree_df_100_n500_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_agree_df_100_n500_ho_batch2.rda")
+MAE_agree_df_n500_b2 <- MAE_agree_df_100_n500_ho
+
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_ks_df_100_n500_holdout_batch1.rda")
+MAE_ks_df_n500_b1 <- MAE_ks_df_100_n500_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_ks_df_100_n500_holdout_batch2.rda")
+MAE_ks_df_n500_b2 <- MAE_ks_df_100_n500_ho
+
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_rand_df_100_n1000_ho_batch1.rda")
+MAE_rand_df_n1000_b1 <- MAE_rand_df_100_n1000_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_rand_df_100_n1000_ho_batch2.rda")
+MAE_rand_df_n1000_b2 <- MAE_rand_df_100_n1000_ho
+
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_agree_df_100_n1000_ho_batch1.rda")
+MAE_agree_df_n1000_b1 <- MAE_agree_df_100_n1000_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_agree_df_100_n1000_ho_batch2.rda")
+MAE_agree_df_n1000_b2 <- MAE_agree_df_100_n1000_ho
+
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_ks_df_n1000_holdout_batch1.rda")
+MAE_ks_df_n1000_b1 <- MAE_ks_df_100_n1000_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_ks_df_n1000_holdout_batch2.rda")
+MAE_ks_df_n1000_b2 <- MAE_ks_df_100_n1000_ho
+
+# load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_rand_df_100_n1500_ho_batch1.rda")
+# MAE_rand_df_n1500_b1 <- MAE_rand_df_100_n1500_ho
+# load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_rand_df_100_n1500_ho_batch2.rda")
+# MAE_rand_df_n1500_b2 <- MAE_rand_df_100_n1500_ho
+# 
+# load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_agree_df_100_n1500_ho_batch1.rda")
+# MAE_agree_df_n1500_b1 <- MAE_agree_df_100_n1500_ho
+# load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_agree_df_100_n1500_ho_batch2.rda")
+# MAE_agree_df_n1500_b2 <- MAE_agree_df_100_n1500_ho
+# 
+# load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_ks_df_n1500_holdout_batch1.rda")
+# MAE_ks_df_n1500_b1 <- MAE_ks_df_100_n1500_ho
+# load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_ks_df_n1500_holdout_batch2.rda")
+# MAE_ks_df_n1500_b2 <- MAE_ks_df_100_n1500_ho
+
+# Plot error from models used to predict hold out dataset
+## n = 100
+MAE_agree_100 <- rbind(MAE_agree_df_n100_b1, MAE_agree_df_n100_b1)%>%
+  mutate(cal_type = "agree", sample_size = "100")
+
+MAE_rand_100 <- rbind(MAE_rand_df_n100_b1, MAE_rand_df_n100_b2)%>%
+  mutate(cal_type = "random", sample_size = "100")
+
+MAE_ks_100 <- rbind(MAE_ks_df_n100_b1, MAE_ks_df_n100_b2)%>%
+  mutate(cal_type = "kennard-stone", sample_size = "100")
+
+## n = 500
+MAE_agree_500 <- rbind(MAE_agree_df_n500_b1, MAE_agree_df_n500_b2)%>%
+  mutate(cal_type = "agree", sample_size = "500")
+
+MAE_rand_500 <- rbind(MAE_rand_df_n500_b1, MAE_rand_df_n500_b2)%>%
+  mutate(cal_type = "random", sample_size = "500")
+
+MAE_ks_500 <- rbind(MAE_ks_df_n500_b1, MAE_ks_df_n500_b2)%>%
+  mutate(cal_type = "kennard-stone", sample_size = "500")
+
+## n = 1000
+MAE_agree_1000 <- rbind(MAE_agree_df_n1000_b1, MAE_agree_df_n1000_b2)%>%
+  mutate(cal_type = "agree", sample_size = "1000")
+
+MAE_rand_1000 <- rbind(MAE_rand_df_n1000_b1, MAE_rand_df_n1000_b2)%>%
+  mutate(cal_type = "random", sample_size = "1000")
+
+MAE_ks_1000 <- rbind(MAE_ks_df_n1000_b1, MAE_ks_df_n1000_b2)%>%
+  mutate(cal_type = "kennard-stone", sample_size = "1000")
+
+# # n = 1500
+# MAE_agree_1500 <- rbind(MAE_agree_df_n1500_b1, MAE_agree_df_n1500_b2)%>%
+#   mutate(cal_type = "agree", sample_size = "1500")
+# 
+# MAE_rand_1500 <- rbind(MAE_rand_df_n1500_b1,  MAE_rand_df_n1500_b2)%>%
+#    mutate(cal_type = "random", sample_size = "1500")
+# 
+# MAE_ks_1500 <- rbind(MAE_ks_df_n1500_b1, MAE_ks_df_n1500_b2)%>%
+#    mutate(cal_type = "kennard-stone", sample_size = "1500")
+
+# n = 2298
+MAE_agree_full <- rbind(MAE_agree_df_b1, MAE_agree_df_b2)%>%
+  mutate(cal_type = "agree", sample_size = "full (1448)")
+
+MAE_rand_full<- rbind(MAE_rand_df_b1, MAE_rand_df_b2)%>%
+  mutate(cal_type = "random", sample_size = "full (1448)")
+
+MAE_ks_full <- rbind(MAE_ks_df_b1, MAE_ks_df_b2)%>%
+  mutate(cal_type = "kennard-stone", sample_size = "full (1448)")
+
+# Join them all 
+MAE_all <- full_join(MAE_agree_100, MAE_rand_100, by =  c("model_iter", "MAE", "cal_type", "sample_size"))
+
+MAE_all <- full_join(MAE_all, MAE_ks_100, by = c("model_iter", "MAE", "cal_type", "sample_size"))
+
+MAE_all <- full_join(MAE_all, MAE_agree_500, by =  c("model_iter", "MAE", "cal_type", "sample_size"))
+
+MAE_all <- full_join(MAE_all, MAE_rand_500, by =  c("model_iter", "MAE", "cal_type", "sample_size"))
+
+MAE_all <- full_join(MAE_all, MAE_ks_500, by =  c("model_iter", "MAE", "cal_type", "sample_size"))
+
+MAE_all <- full_join(MAE_all, MAE_agree_1000, by =  c("model_iter", "MAE", "cal_type", "sample_size"))
+
+MAE_all <- full_join(MAE_all, MAE_rand_1000, by =  c("model_iter", "MAE", "cal_type", "sample_size"))
+
+MAE_all <- full_join(MAE_all, MAE_ks_1000, by =  c("model_iter", "MAE", "cal_type", "sample_size"))
+# 
+# MAE_all <- full_join(MAE_all, MAE_agree_1500, by =  c("model_iter", "MAE", "cal_type", "sample_size"))
+# 
+# MAE_all <- full_join(MAE_all, MAE_rand_1500, by =  c("model_iter", "MAE", "cal_type", "sample_size"))
+# 
+# MAE_all <- full_join(MAE_all, MAE_ks_1500, by =  c("model_iter", "MAE", "cal_type", "sample_size"))
+# 
+# MAE_all <- full_join(MAE_all, MAE_agree_1500, by =  c("model_iter", "MAE", "cal_type", "sample_size"))
+# 
+# MAE_all <- full_join(MAE_all, MAE_rand_1500, by =  c("model_iter", "MAE", "cal_type", "sample_size"))
+# 
+# MAE_all <- full_join(MAE_all, MAE_ks_1500, by =  c("model_iter", "MAE", "cal_type", "sample_size"))
+
+MAE_all <- full_join(MAE_all, MAE_agree_full, by =  c("model_iter", "MAE", "cal_type", "sample_size"))
+
+MAE_all <- full_join(MAE_all, MAE_rand_full, by =  c("model_iter", "MAE", "cal_type", "sample_size"))
+
+MAE_all <- full_join(MAE_all, MAE_ks_full, by =  c("model_iter", "MAE", "cal_type", "sample_size"))
+
+
+MAE_all$cal_type <- factor(MAE_all$cal_type, levels = c("agree", "random", "kennard-stone"))
+
+MAE_all$sample_size <- factor(MAE_all$sample_size, levels = c("100", "500", "1000", "full (1448)"))
+
+# Plot
+ggplot(MAE_all, aes(sample_size, MAE, color = cal_type))+
+  geom_violin(trim = F)+
+  # geom_dotplot(binaxis='y', stackdir='center', dotsize=.1, fill = "grey", position = position_dodge(.9))+
+  scale_color_manual(values = c("grey90", "grey60", "black"))+
+  # geom_dotplot(data = MAE_all_ho %>% filter(cal_type == "kennard-stone"), aes(cal_type, MAE), binaxis='y', stackdir='center', dotsize=1)+
+  labs(x = "Calibration selection approach",
+       y = "Mean absolute error of predictions")+
+  theme_classic()
+
+
+```
+
+Figure 4. Violin plots (kernal density) comparing mean absolute errors between three calibration selection approaches to predict ages for the hold out data set. This is shown for calibration sample sizes 100 - 1448 at intervals of 500. Each has 200 iterations.
+
+### Results
+
+-   Not much gain over n=500
+-   At the lowest sample size (n=100) in both proof-of-concept study and when applied to a hold out data set: the kennard-stone approach has the most variation in performance and the agree age approach has the least. Why??
+-   For sample sizes equal to or greater than 500, the kennard-stone approach resulted in higher predictive performance on average in proof-of-concept studies when able to "see" all data. However, when calibration models from all approaches were applied to a hold out data set, methods were fairly comparable in their predictive performance and kennard-stone did not outperform the agree ages or the random selection approaches. This suggests that when kennard-stone is used in proof-of-concept studies and used to draw from the full data set to select a calibration set, one may be over-fitting one's model and getting overly optimistic results. Better to do CV or something.
+-   Guidance for sample sizes 500 or greater, if doing proof-of-concept, do CV to get a better idea of predictive ability. If choosing a calibration set for future predictions on incoming data, use Kennard-Stone.
+-   Guidance for sample sizes less than 500 (?? need help with how to interpret)
+
+## 3. Exploring characteristics of best and worst calibration sets (n=100)
+
+We compared characteristics including age distribution, spatial distribution, collection year, and collection type (survey vs. fishery) between the best performing model calibration data set (that had the highest predictive accuracy on the hold out data set) and the worst performing model calibration data set (had the lowest predictive accuracy on the hold out data set).
+
+### Agree age selection method
+
+#### Best calibration set - age distribution, spatial distribution, collection type (fishery vs. survey) (n=100)
+
+```{r}
+#| echo: false
+#| warning: false
+
+# To check the characteristics of the "worst models" - age distribution, spatial distribution, fishery vs. survey
+
+# Load MAE
+# Load MAE
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_agree_df_100_n100_ho_batch1.rda")
+MAE_agree_df_b1 <- MAE_agree_df_100_n100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_agree_df_100_n100_ho_batch2.rda")
+MAE_agree_df_b2 <- MAE_agree_df_100_n100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_rand_df_100_n100_ho_batch1.rda")
+MAE_rand_df_b1 <- MAE_rand_df_100_n100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_rand_df_100_n100_ho_batch2.rda")
+MAE_rand_df_b2 <- MAE_rand_df_100_n100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_ks_df_n100_holdout_batch1.rda")
+MAE_ks_df_b1 <- MAE_ks_df_100_n100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_ks_df_n100_holdout_batch2.rda")
+MAE_ks_df_b2 <- MAE_ks_df_100_n100_ho
+
+# Join
+MAE_agree_ho <- rbind(MAE_agree_df_b1, MAE_agree_df_b2)
+
+MAE_rand_ho <- rbind(MAE_rand_df_b1, MAE_rand_df_b2)
+
+MAE_ks_ho <- rbind(MAE_ks_df_b1, MAE_ks_df_b2)
+
+# Plot for cutoffs
+## Make cutoffs all .81 to standardized converatively
+# ggplot(MAE_agree_ho)+
+#   geom_boxplot(aes(MAE)) #cutoff .81
+# 
+# ggplot(MAE_rand_ho)+
+#   geom_boxplot(aes(MAE)) #cutoff .81
+# 
+# ggplot(MAE_ks_ho)+
+#   geom_boxplot(aes(MAE)) #cutoff .81
+
+# Index for best calibration from each method
+index_best_agree <- which.min(MAE_agree_ho$MAE)
+index_best_rand <- which.min(MAE_rand_ho$MAE)
+index_best_ks <- which.min(MAE_ks_ho$MAE)
+
+# Index numbers for worst calibrations from each method
+index_bad_agree <- which.max(MAE_agree_ho$MAE) #can also use which() with a cutoff for more calibration sets
+index_bad_rand <- which.max(MAE_rand_ho$MAE)
+index_bad_ks <- which.max(MAE_ks_ho$MAE) 
+  
+# Load calibration set lists and filter by index
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/train_sets_agree_n100_batch1.rda")
+train_sets_agree_b1 <- train_sets_agree
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/train_sets_agree_n100_batch2.rda")
+train_sets_agree_b2 <- train_sets_agree
+train_sets_agree <- c(train_sets_agree_b1, train_sets_agree_b2)
+
+best_train_agree <- train_sets_agree[[index_best_agree]]
+bad_train_agree <- train_sets_agree[[index_bad_agree]]
+rm(train_sets_agree_b1)
+rm(train_sets_agree_b2)
+rm(train_sets_agree)
+
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/train_sets_rand_n100_batch1.rda")
+train_sets_rand_b1 <- train_sets_rand
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/train_sets_rand_n100_batch2.rda")
+train_sets_rand_b2 <- train_sets_rand
+train_sets_rand <- c(train_sets_rand_b1, train_sets_rand_b2)
+
+best_train_rand <- train_sets_rand[[index_best_rand]]
+bad_train_rand <- train_sets_rand[[index_bad_rand]]
+rm(train_sets_rand)
+rm(train_sets_rand_b1)
+rm(train_sets_rand_b2)
+
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/train_sets_ks_n100_batch1.rda")
+train_sets_ks_b1 <- train_sets_ks
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/train_sets_ks_n100_batch2.rda")
+train_sets_ks_b2 <- train_sets_ks
+train_sets_ks <- c(train_sets_ks_b1, train_sets_ks_b2)
+
+best_train_ks <- train_sets_ks[[index_best_ks]]
+bad_train_ks <- train_sets_ks[[index_bad_ks]]
+rm(train_sets_ks)
+rm(train_sets_ks_b1)
+rm(train_sets_ks_b2)
+
+# How do I look at distributions and stuff...age, spatial, fishery/survey
+#
+p1 <- ggplot(best_train_agree)+
+  geom_bar(aes(final_age))
+
+p2 <- ggplot(best_train_agree)+
+  geom_point(aes(longitude, latitude))
+
+p3 <- ggplot(best_train_agree)+
+  geom_bar(aes(collection_year))
+
+best_train_agree <- best_train_agree%>%
+  mutate(col_type = ifelse(vessel_code %in% c("162", "94"), "Survey", "Fishery"))
+
+p4 <- ggplot(best_train_agree)+
+  geom_bar(aes(col_type))
+
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+```
+
+#### Worst calibration sets - age distribution, spatial distribution, collection year, collection type (n=100)
+
+```{r}
+#| echo: false
+#| warning: false
+
+p1 <- ggplot(bad_train_agree)+
+  geom_bar(aes(final_age))
+
+p2 <- ggplot(bad_train_agree)+
+  geom_point(aes(longitude, latitude))
+
+p3 <- ggplot(bad_train_agree)+
+  geom_bar(aes(collection_year))
+
+bad_train_agree <- bad_train_agree%>%
+  mutate(col_type = ifelse(vessel_code %in% c("162", "94"), "Survey", "Fishery"))
+
+p4 <- ggplot(bad_train_agree)+
+  geom_bar(aes(col_type))
+
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+
+```
+
+### Random selection method
+
+#### Best calibration set - age distribution, spatial distribution, collection year, collection type (survey vs. fishery) (n=100)
+
+```{r}
+#| echo: false
+#| warning: false
+
+# How do I look at distributions and stuff...age, spatial, fishery/survey
+#
+p1 <- ggplot(best_train_rand)+
+  geom_bar(aes(final_age))
+
+p2 <- ggplot(best_train_rand)+
+  geom_point(aes(longitude, latitude))
+
+p3 <- ggplot(best_train_rand)+
+  geom_bar(aes(collection_year))
+
+
+best_train_rand <- best_train_rand%>%
+  mutate(col_type = ifelse(vessel_code %in% c("162", "94"), "Survey", "Fishery"))
+
+p4 <- ggplot(best_train_rand)+
+  geom_bar(aes(col_type))
+
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+```
+
+#### Worst calibration sets - age distribution, spatial distribution, collection year, collection type (survey vs. fishery) (n=100)
+
+```{r}
+#| echo: false
+#| warning: false
+
+# How do I look at distributions and stuff...age, spatial, fishery/survey
+#
+p1 <- ggplot(bad_train_rand)+
+  geom_bar(aes(final_age))
+
+p2 <- ggplot(bad_train_rand)+
+  geom_point(aes(longitude, latitude))
+
+p3 <- ggplot(bad_train_rand)+
+  geom_bar(aes(collection_year))
+
+
+bad_train_rand <- bad_train_rand%>%
+  mutate(col_type = ifelse(vessel_code %in% c("162", "94"), "Survey", "Fishery"))
+
+p4 <- ggplot(bad_train_rand)+
+  geom_bar(aes(col_type))
+
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+```
+
+### Kennard-Stone selection method
+
+#### Best calibration sets - age distribution, spatial distribution, collection year, collection type (survey vs. fishery) (n=100)
+
+```{r}
+#| echo: false
+#| warning: false
+
+# How do I look at distributions and stuff…age, spatial, fishery/survey
+#
+p1 <- ggplot(best_train_ks)+
+  geom_bar(aes(final_age))
+
+p2 <- ggplot(best_train_ks)+
+  geom_point(aes(longitude, latitude))
+
+p3 <- ggplot(best_train_ks)+
+  geom_bar(aes(collection_year))
+
+best_train_ks <- best_train_ks%>%
+  mutate(col_type = ifelse(vessel_code %in% c("162", "94"), "Survey", "Fishery"))
+
+p4 <- ggplot(best_train_ks)+
+  geom_bar(aes(col_type))
+
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+```
+
+#### Worst calibration sets - age distribution, spatial distribution, collection year, collection type (survey vs. fishery) (n=100)
+
+```{r}
+#| echo: false
+#| warning: false
+
+# How do I look at distributions and stuff…age, spatial, fishery/survey
+#
+p1 <- ggplot(bad_train_ks)+
+  geom_bar(aes(final_age))
+
+p2 <- ggplot(bad_train_ks)+
+  geom_point(aes(longitude, latitude))
+
+p3 <- ggplot(bad_train_ks)+
+  geom_bar(aes(collection_year))
+
+bad_train_ks <- bad_train_ks%>%
+  mutate(col_type = ifelse(vessel_code %in% c("162", "94"), "Survey", "Fishery"))
+
+p4 <- ggplot(bad_train_ks)+
+  geom_bar(aes(col_type))
+
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+```
+
+## 4. Exploring characteristics of best and worst calibration sets (n=1,448)
+
+We compared characteristics including age distribution, spatial distribution, collection year, and collection type (survey vs. fishery) between the best performing model calibration data set (that had the highest predictive accuracy on the hold out data set) and the worst performing model calibration data set (had the lowest predictive accuracy on the hold out data set).
+
+### Agree age selection method
+
+#### Best calibration set - age distribution, spatial distribution, collection type (fishery vs. survey) (n=1,448)
+
+```{r}
+#| echo: false
+#| warning: false
+
+# To check the characteristics of the "worst models" - age distribution, spatial distribution, fishery vs. survey
+
+# Load MAE
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_agree_df_100_ho_batch1.rda")
+MAE_agree_df_b1 <- MAE_agree_df_100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_agree_df_100_ho_batch2.rda")
+MAE_agree_df_b2 <- MAE_agree_df_100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_rand_df_100_ho_batch1.rda")
+MAE_rand_df_b1 <- MAE_rand_df_100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_rand_df_100_ho_batch2.rda")
+MAE_rand_df_b2 <- MAE_rand_df_100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_ks_df_holdout_batch1.rda")
+MAE_ks_df_b1 <- MAE_ks_df_100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/MAE_ks_df_holdout_batch2.rda")
+MAE_ks_df_b2 <- MAE_ks_df_100_ho
+
+# Join
+MAE_agree_ho <- rbind(MAE_agree_df_b1, MAE_agree_df_b2)
+
+MAE_rand_ho <- rbind(MAE_rand_df_b1, MAE_rand_df_b2)
+
+MAE_ks_ho <- rbind(MAE_ks_df_b1, MAE_ks_df_b2)
+
+# Plot for cutoffs
+## Make cutoffs all .81 to standardized converatively
+# ggplot(MAE_agree_df_100_ho)+
+#   geom_boxplot(aes(MAE)) #cutoff .81
+# 
+# ggplot(MAE_rand_df_100_ho)+
+#   geom_boxplot(aes(MAE)) #cutoff .81
+# 
+# ggplot(MAE_ks_df_100_ho)+
+#   geom_boxplot(aes(MAE)) #cutoff .81
+
+# Index for best calibration from each method
+index_best_agree <- which.min(MAE_agree_ho$MAE)
+index_best_rand <- which.min(MAE_rand_ho$MAE)
+index_best_ks <- which.min(MAE_ks_ho$MAE)
+
+# Index numbers for worst calibrations from each method
+index_bad_agree <- which.max(MAE_agree_ho$MAE) #can also use which() with a cutoff for more calibration sets
+index_bad_rand <- which.max(MAE_rand_ho$MAE)
+index_bad_ks <- which.max(MAE_ks_ho$MAE) 
+  
+# Load calibration set lists and filter by index
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/train_sets_agree_batch1.rda")
+train_sets_agree_b1 <- train_sets_agree
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/train_sets_agree_batch2.rda")
+train_sets_agree_b2 <- train_sets_agree
+train_sets_agree <- c(train_sets_agree_b1, train_sets_agree_b2)
+
+best_train_agree <- train_sets_agree[[index_best_agree]]
+bad_train_agree <- train_sets_agree[[index_bad_agree]]
+rm(train_sets_agree_b1)
+rm(train_sets_agree_b2)
+rm(train_sets_agree)
+
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/train_sets_rand_batch1.rda")
+train_sets_rand_b1 <- train_sets_rand
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/train_sets_rand_batch2.rda")
+train_sets_rand_b2 <- train_sets_rand
+train_sets_rand <- c(train_sets_rand_b1, train_sets_rand_b2)
+
+best_train_rand <- train_sets_rand[[index_best_rand]]
+bad_train_rand <- train_sets_rand[[index_bad_rand]]
+rm(train_sets_rand)
+rm(train_sets_rand_b1)
+rm(train_sets_rand_b2)
+
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/train_sets_ks_batch1.rda")
+train_sets_ks_b1 <- train_sets_ks
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files-pcod/train_sets_ks_batch2.rda")
+train_sets_ks_b2 <- train_sets_ks
+train_sets_ks <- c(train_sets_ks_b1, train_sets_ks_b2)
+
+best_train_ks <- train_sets_ks[[index_best_ks]]
+bad_train_ks <- train_sets_ks[[index_bad_ks]]
+rm(train_sets_ks)
+rm(train_sets_ks_b1)
+rm(train_sets_ks_b2)
+
+# How do I look at distributions and stuff...age, spatial, fishery/survey
+#
+p1 <- ggplot(best_train_agree)+
+  geom_bar(aes(final_age))
+
+p2 <- ggplot(best_train_agree)+
+  geom_point(aes(longitude, latitude))
+
+p3 <- ggplot(best_train_agree)+
+  geom_bar(aes(collection_year))
+
+best_train_agree <- best_train_agree%>%
+  mutate(col_type = ifelse(vessel_code %in% c("162", "94"), "Survey", "Fishery"))
+
+p4 <- ggplot(best_train_agree)+
+  geom_bar(aes(col_type))
+
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+```
+
+#### Worst calibration sets - age distribution, spatial distribution, collection year, collection type (survey vs. fishery) (n=1,148)
+
+```{r}
+#| echo: false
+#| warning: false
+
+p1 <- ggplot(bad_train_agree)+
+  geom_bar(aes(final_age))
+
+p2 <- ggplot(bad_train_agree)+
+  geom_point(aes(longitude, latitude))
+
+p3 <- ggplot(bad_train_agree)+
+  geom_bar(aes(collection_year))
+
+bad_train_agree <- bad_train_agree%>%
+  mutate(col_type = ifelse(vessel_code %in% c("162", "94"), "Survey", "Fishery"))
+
+p4 <- ggplot(bad_train_agree)+
+  geom_bar(aes(col_type))
+
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+
+```
+
+### Random selection method
+
+#### Best calibration set - age distribution, spatial distribution, collection year, collection type (survey vs. fishery) (n=1,448)
+
+```{r}
+#| echo: false
+#| warning: false
+
+# How do I look at distributions and stuff...age, spatial, fishery/survey
+#
+p1 <- ggplot(best_train_rand)+
+  geom_bar(aes(final_age))
+
+p2 <- ggplot(best_train_rand)+
+  geom_point(aes(longitude, latitude))
+
+p3 <- ggplot(best_train_rand)+
+  geom_bar(aes(collection_year))
+
+
+best_train_rand <- best_train_rand%>%
+  mutate(col_type = ifelse(vessel_code %in% c("162", "94"), "Survey", "Fishery"))
+
+p4 <- ggplot(best_train_rand)+
+  geom_bar(aes(col_type))
+
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+```
+
+#### Worst calibration sets - aage distribution, spatial distribution, collection year, collection type (survey vs. fishery) (n=1,448)
+
+```{r}
+#| echo: false
+#| warning: false
+
+# How do I look at distributions and stuff...age, spatial, fishery/survey
+#
+p1 <- ggplot(bad_train_rand)+
+  geom_bar(aes(final_age))
+
+p2 <- ggplot(bad_train_rand)+
+  geom_point(aes(longitude, latitude))
+
+p3 <- ggplot(bad_train_rand)+
+  geom_bar(aes(collection_year))
+
+
+bad_train_rand <- bad_train_rand%>%
+  mutate(col_type = ifelse(vessel_code %in% c("162", "94"), "Survey", "Fishery"))
+
+p4 <- ggplot(bad_train_rand)+
+  geom_bar(aes(col_type))
+
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+```
+
+### Kennard-Stone selection method
+
+#### Best calibration sets - age distribution, spatial distribution, collection year, collection type (survey vs. fishery) (n=1,448)
+
+```{r}
+#| echo: false
+#| warning: false
+
+# How do I look at distributions and stuff…age, spatial, fishery/survey
+#
+p1 <- ggplot(best_train_ks)+
+  geom_bar(aes(final_age))
+
+p2 <- ggplot(best_train_ks)+
+  geom_point(aes(longitude, latitude))
+
+p3 <- ggplot(best_train_ks)+
+  geom_bar(aes(collection_year))
+
+best_train_ks <- best_train_ks%>%
+  mutate(col_type = ifelse(vessel_code %in% c("162", "94"), "Survey", "Fishery"))
+
+p4 <- ggplot(best_train_ks)+
+  geom_bar(aes(col_type))
+
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+```
+
+#### Worst calibration sets - age distribution, spatial distribution, collection year, collection type (survey vs. fishery) (n=1,448)
+
+```{r}
+#| echo: false
+#| warning: false
+
+# How do I look at distributions and stuff…age, spatial, fishery/survey
+#
+p1 <- ggplot(bad_train_ks)+
+  geom_bar(aes(final_age))
+
+p2 <- ggplot(bad_train_ks)+
+  geom_point(aes(longitude, latitude))
+
+p3 <- ggplot(bad_train_ks)+
+  geom_bar(aes(collection_year))
+
+bad_train_ks <- bad_train_ks%>%
+  mutate(col_type = ifelse(vessel_code %in% c("162", "94"), "Survey", "Fishery"))
+
+p4 <- ggplot(bad_train_ks)+
+  geom_bar(aes(col_type))
+
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+```
