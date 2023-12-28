@@ -1,12 +1,12 @@
 All scripts and files for simulation work to explore best practices for predictive pls models for walleye pollock. Description of included scripts and files:
 
-**Scripts:**
+Scripts:
 
 selecting-calibration-samples: script comparing three different approaches for selecting calibration samples at a range of sample sizes. 
 
 calibration-selection-report: script that generates a report based on results of selecting-calibration-samples.
 
-**Other files:**
+Other files:
 
 calibration-selection-report.html: html ouput from calibration-selection-report script
 
