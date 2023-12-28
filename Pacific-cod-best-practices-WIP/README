@@ -1,0 +1,13 @@
+All scripts and files for simulation work to explore best practices for predictive pls models for Pacific cod. This is a draft and work in progress, not yet fully matching analysis done for walleye pollock. Description of included scripts and files:
+
+Scripts:
+
+pcod-selecting-calibration-samples: script comparing three different approaches for selecting calibration samples at a range of sample sizes. 
+
+pcod-calibration-selection-report: script that generates a report based on results of selecting-calibration-samples.
+
+Other files:
+
+pcod-calibration-selection-report.html: html ouput from calibration-selection-report script
+
+pcod-calibration-selection-report.docx: word document output from calibration-selection-report script
