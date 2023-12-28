@@ -1,0 +1,1676 @@
+---
+title: "Best practices for selecting calibration samples"
+author: "Morgan Arrington"
+format: html
+editor: visual
+embed-resources: true
+---
+
+This section of the simulation project is to evaluate best practices for selecting a model calibration data set. Rigorous calibration sample selection is important to evaluate and optimize the predictive capability of PLS models used to estimate fish age from the near infrared spectra of their otoliths. First, I explore three different approaches for selecting calibration samples to evaluate relative predictive capability of PLS models, and then I evaluate optimal sample size for calibration data sets. Here, this is done for walleye pollock.
+
+## 1. Comparing three approaches to select calibration samples
+
+### Methods
+
+I started with the full spectral data set from Bering Sea walleye pollock otoliths collected on the bottom trawl survey between the years 2014-2018. I pre-processed all spectral data with Savitzky-Golay (1st derivative, 17-points) which is our standard pre-processing method.
+
+```{r}
+#| echo: false
+#| warning: false
+library(tidyverse)
+library(rstatix)
+library(gridExtra)
+
+iter <- 200
+```
+
+I filtered out data affected by the straylight correction issue that had been scanned between June 2021 - May 2022. I then performed outlier detection and removal based on orthogonal distances ($\mathbf{Q}$) and score distances (Hotelling's $\mathbf{T}^2$) past critical limits. This is done by calculating critical limits using a data-driven approach assuming a joint distance that follows a chi-squared distribution (Pomeranstev and Rodionova). Values that fell outside a significance level of 0.01 were considered outliers and removed from the data set (n = 100).
+
+I split the data into two data sets. One data set (hereinafter referred to as the double read data set) had all double read data (n = 2055), and the all other data set had just a single read age (hereinafter referred to as "hold out" data) (n = 7272).
+
+I then evaluated three different methods for selecting calibration models from the double read data set on a range of sample sizes: 1) the agree ages approach - I used just the spectra from otoliths where both the reader and tester agreed on the age. This is based on the assumption that these specimens have the least error in reference ages; 2) Random selection approach - I randomly selected a subset of data for the calibration model. This has been somewhat status quo; 3) Kennard-Stone algorithm approach - I used the Kennard-Stone algorithm to select representative samples that encompass the full range of spectral variation in our data set. When selecting a subset of data for a calibration sample via random sample, there are many different possible combinations depending on the total sample size. Some combinations may, based on random chance, be better or worse at predicting future samples than others. Additionally, our data set itself is only a subset of the total population. To encompass a broader range of possible data sets, I compare calibration model selection best practices using a simulation-based approach.
+
+#### Agree ages approach
+
+To evaluate the agree ages approach, I resampled with replacement from the specimens where the reader and tester agreed on age at sample sizes from n = 100 to the full sample size of n = 1386 at intervals of 100. I resampled 200 data sets per calibration sample size. Each had a paired validation set which included any samples from the double read data set not included in each calibration data set. I then fit a partial least squares regression model (PLS models) to each calibration set and used it to predict age for each paired validation set (200 models per sample size).
+
+#### Random selection approach
+
+To evaluate the random selection approach for selecting calibration samples, I resampled with replacement from the full double read data set (n = 2055) at sample sizes from n=100 to n=1386 to be equivalent to the agree ages approach. This was to eliminate variation in model performance due to different calibration sample sizes. This resulted in 200 simulated data sets per calibration sample size, each with a paired validation data set which included any samples from the double read data set not included in each calibration data set.
+
+#### Kennard-stone algorithm approach
+
+To evaluate the Kennard-Stone algorithm for selecting calibration samples, I resampled with replacement from the full double read data set (n = 2055) to generate 200 simulated data sets per sample size n=100 to n=1386. I then applied the Kennard-Stone algorithm to each simulated data set to select calibration sets with variable sample size from n=100 to n=1386 to be equivalent to the agree ages approach and the random selection approach. This resulted in 200 simulated calibration sets per calibration sample size, each with a paired validation sets which included any samples from the double read data set not included in each calibration data set.
+
+#### Application to paired validation sets from double read data
+
+I then fit partial least squares regression (PLS) models to each calibration set selected via each method at each sample size. I used each PLS model to predict ages for their corresponding paired validation set from the double read data (n = 2055). For each model, the optimal number of latent variables (LVs) was selected based on first local minimum of RMSE with increasing number of LVs.This was to simulate evaluating a calibration model's predictive accuracy in a proof-of-concept study. Each approach had 200 calibration models fit on 200 simulated data sets at each sample size. I then calculated the root mean square error (RSME) of the predicted ages vs. traditionally estimated reference ages in each validation set to evaluate the predictive accuracy of each calibration model. This resulted in 200 RMSE values per method, per sample size.
+
+```{=tex}
+\begin{equation}
+\operatorname{RMSE}=\sqrt{\frac{\sum_{i=1}^N\left(x_i-\hat{x}_i\right)^2}{N}}
+\end{equation}
+```
+```{r}
+#| echo: false
+#| warning: false
+#| fig-width: 10
+
+#Full
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_batch1.rda")
+RMSE_agree_df_b1 <- RMSE_agree_df_100
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_batch2.rda")
+RMSE_agree_df_b2 <- RMSE_agree_df_100
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_batch1.rda")
+RMSE_rand_df_b1 <- RMSE_rand_df_100
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_batch2.rda")
+RMSE_rand_df_b2 <- RMSE_rand_df_100
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_doublereaddat_batch1.rda")
+RMSE_ks_df_b1 <- RMSE_ks_df_100
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_doublereaddat_batch2.rda")
+RMSE_ks_df_b2 <- RMSE_ks_df_100
+
+# n = 100
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n100_batch1.rda")
+RMSE_agree_df_n100_b1 <- RMSE_agree_df_100_n100
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n100_batch2.rda")
+RMSE_agree_df_n100_b2 <- RMSE_agree_df_100_n100
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n100_batch1.rda")
+RMSE_rand_df_n100_b1 <- RMSE_rand_df_100_n100
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n100_batch2.rda")
+RMSE_rand_df_n100_b2 <- RMSE_rand_df_100_n100
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_doublereaddat_n100_batch1.rda")
+RMSE_ks_df_n100_b1 <- RMSE_ks_df_100_n100
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_doublereaddat_n100_batch2.rda")
+RMSE_ks_df_n100_b2 <- RMSE_ks_df_100_n100
+
+# n = 200
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n200_batch1.rda")
+RMSE_agree_df_n200_b1 <- RMSE_agree_df_100_n200
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n200_batch2.rda")
+RMSE_agree_df_n200_b2 <- RMSE_agree_df_100_n200
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n200_batch1.rda")
+RMSE_rand_df_n200_b1 <- RMSE_rand_df_100_n200
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n200_batch2.rda")
+RMSE_rand_df_n200_b2 <- RMSE_rand_df_100_n200
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_doublereaddat_n200_batch1.rda")
+RMSE_ks_df_n200_b1 <- RMSE_ks_df_100_n200
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_doublereaddat_n200_batch2.rda")
+RMSE_ks_df_n200_b2 <- RMSE_ks_df_100_n200
+
+# n = 300
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n300_batch1.rda")
+RMSE_agree_df_n300_b1 <- RMSE_agree_df_100_n300
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n300_batch2.rda")
+RMSE_agree_df_n300_b2 <- RMSE_agree_df_100_n300
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n300_batch1.rda")
+RMSE_rand_df_n300_b1 <- RMSE_rand_df_100_n300
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n300_batch2.rda")
+RMSE_rand_df_n300_b2 <- RMSE_rand_df_100_n300
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_doublereaddat_n300_batch1.rda")
+RMSE_ks_df_n300_b1 <- RMSE_ks_df_100_n300
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_doublereaddat_n300_batch2.rda")
+RMSE_ks_df_n300_b2 <- RMSE_ks_df_100_n300
+
+# n = 400
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n400_batch1.rda")
+RMSE_agree_df_n400_b1 <- RMSE_agree_df_100_n400
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n400_batch2.rda")
+RMSE_agree_df_n400_b2 <- RMSE_agree_df_100_n400
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n400_batch1.rda")
+RMSE_rand_df_n400_b1 <- RMSE_rand_df_100_n400
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n400_batch2.rda")
+RMSE_rand_df_n400_b2 <- RMSE_rand_df_100_n400
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_doublereaddat_n400_batch1.rda")
+RMSE_ks_df_n400_b1 <- RMSE_ks_df_100_n400
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_doublereaddat_n400_batch2.rda")
+RMSE_ks_df_n400_b2 <- RMSE_ks_df_100_n400
+
+# n = 500
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n500_batch1.rda")
+RMSE_rand_df_n500_b1 <- RMSE_rand_df_100_n500
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n500_batch2.rda")
+RMSE_rand_df_n500_b2 <- RMSE_rand_df_100_n500
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n500_batch1.rda")
+RMSE_agree_df_n500_b1 <- RMSE_agree_df_100_n500
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n500_batch2.rda")
+RMSE_agree_df_n500_b2 <- RMSE_agree_df_100_n500
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_doublereaddat_n500_batch1.rda")
+RMSE_ks_df_n500_b1 <- RMSE_ks_df_100_n500
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_doublereaddat_n500_batch2.rda")
+RMSE_ks_df_n500_b2 <- RMSE_ks_df_100_n500
+
+# n = 600
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n600_batch1.rda")
+RMSE_rand_df_n600_b1 <- RMSE_rand_df_100_n600
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n600_batch2.rda")
+RMSE_rand_df_n600_b2 <- RMSE_rand_df_100_n600
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n600_batch1.rda")
+RMSE_agree_df_n600_b1 <- RMSE_agree_df_100_n600
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n600_batch2.rda")
+RMSE_agree_df_n600_b2 <- RMSE_agree_df_100_n600
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_doublereaddat_n600_batch1.rda")
+RMSE_ks_df_n600_b1 <- RMSE_ks_df_100_n600
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_doublereaddat_n600_batch2.rda")
+RMSE_ks_df_n600_b2 <- RMSE_ks_df_100_n600
+
+# n = 700
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n700_batch1.rda")
+RMSE_rand_df_n700_b1 <- RMSE_rand_df_100_n700
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n700_batch2.rda")
+RMSE_rand_df_n700_b2 <- RMSE_rand_df_100_n700
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n700_batch1.rda")
+RMSE_agree_df_n700_b1 <- RMSE_agree_df_100_n700
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n700_batch2.rda")
+RMSE_agree_df_n700_b2 <- RMSE_agree_df_100_n700
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_doublereaddat_n700_batch1.rda")
+RMSE_ks_df_n700_b1 <- RMSE_ks_df_100_n700
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_doublereaddat_n700_batch2.rda")
+RMSE_ks_df_n700_b2 <- RMSE_ks_df_100_n700
+
+# n = 800
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n800_batch1.rda")
+RMSE_rand_df_n800_b1 <- RMSE_rand_df_100_n800
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n800_batch2.rda")
+RMSE_rand_df_n800_b2 <- RMSE_rand_df_100_n800
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n800_batch1.rda")
+RMSE_agree_df_n800_b1 <- RMSE_agree_df_100_n800
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n800_batch2.rda")
+RMSE_agree_df_n800_b2 <- RMSE_agree_df_100_n800
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_doublereaddat_n800_batch1.rda")
+RMSE_ks_df_n800_b1 <- RMSE_ks_df_100_n800
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_doublereaddat_n800_batch2.rda")
+RMSE_ks_df_n800_b2 <- RMSE_ks_df_100_n800
+
+# n = 900
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n900_batch1.rda")
+RMSE_rand_df_n900_b1 <- RMSE_rand_df_100_n900
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n900_batch2.rda")
+RMSE_rand_df_n900_b2 <- RMSE_rand_df_100_n900
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n900_batch1.rda")
+RMSE_agree_df_n900_b1 <- RMSE_agree_df_100_n900
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n900_batch2.rda")
+RMSE_agree_df_n900_b2 <- RMSE_agree_df_100_n900
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_doublereaddat_n900_batch1.rda")
+RMSE_ks_df_n900_b1 <- RMSE_ks_df_100_n900
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_doublereaddat_n900_batch2.rda")
+RMSE_ks_df_n900_b2 <- RMSE_ks_df_100_n900
+
+# n = 1000
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n1000_batch1.rda")
+RMSE_rand_df_n1000_b1 <- RMSE_rand_df_100_n1000
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n1000_batch2.rda")
+RMSE_rand_df_n1000_b2 <- RMSE_rand_df_100_n1000
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n1000_batch1.rda")
+RMSE_agree_df_n1000_b1 <- RMSE_agree_df_100_n1000
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n1000_batch2.rda")
+RMSE_agree_df_n1000_b2 <- RMSE_agree_df_100_n1000
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_doublereaddat_n1000_batch1.rda")
+RMSE_ks_df_n1000_b1 <- RMSE_ks_df_100_n1000
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_doublereaddat_n1000_batch2.rda")
+RMSE_ks_df_n1000_b2 <- RMSE_ks_df_100_n1000
+
+# n = 1100
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n1100_batch1.rda")
+RMSE_rand_df_n1100_b1 <- RMSE_rand_df_100_n1100
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n1100_batch2.rda")
+RMSE_rand_df_n1100_b2 <- RMSE_rand_df_100_n1100
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n1100_batch1.rda")
+RMSE_agree_df_n1100_b1 <- RMSE_agree_df_100_n1100
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n1100_batch2.rda")
+RMSE_agree_df_n1100_b2 <- RMSE_agree_df_100_n1100
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_doublereaddat_n1100_batch1.rda")
+RMSE_ks_df_n1100_b1 <- RMSE_ks_df_100_n1100
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_doublereaddat_n1100_batch2.rda")
+RMSE_ks_df_n1100_b2 <- RMSE_ks_df_100_n1100
+
+# n = 1200
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n1200_batch1.rda")
+RMSE_rand_df_n1200_b1 <- RMSE_rand_df_100_n1200
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n1200_batch2.rda")
+RMSE_rand_df_n1200_b2 <- RMSE_rand_df_100_n1200
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n1200_batch1.rda")
+RMSE_agree_df_n1200_b1 <- RMSE_agree_df_100_n1200
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n1200_batch2.rda")
+RMSE_agree_df_n1200_b2 <- RMSE_agree_df_100_n1200
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_doublereaddat_n1200_batch1.rda")
+RMSE_ks_df_n1200_b1 <- RMSE_ks_df_100_n1200
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_doublereaddat_n1200_batch2.rda")
+RMSE_ks_df_n1200_b2 <- RMSE_ks_df_100_n1200
+
+# load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n1500_batch1.rda")
+# RMSE_rand_df_n1500_b1 <- RMSE_rand_df_100_n1500
+# load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n1500_batch2.rda")
+# RMSE_rand_df_n1500_b2 <- RMSE_rand_df_100_n1500
+
+# load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n1500_batch1.rda")
+# RMSE_agree_df_n1500_b1 <- RMSE_agree_df_100_n1500
+# load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n1500_batch2.rda")
+# RMSE_agree_df_n1500_b2 <- RMSE_agree_df_100_n1500
+# 
+# load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_doublereaddat_n1500_batch1.rda")
+# RMSE_ks_df_n1500_b1 <- RMSE_ks_df_100_n1500
+# load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_doublereaddat_n1500_batch2.rda")
+# RMSE_ks_df_n1500_b2 <- RMSE_ks_df_100_n1500
+
+# Plot error from models used to predict hold out dataset
+## n = 100
+RMSE_agree_100 <- cbind.data.frame(c(RMSE_agree_df_n100_b1$RMSE, RMSE_agree_df_n100_b2$RMSE), c(RMSE_agree_df_n100_b1$RMSE_CV, RMSE_agree_df_n100_b2$RMSE_CV))%>%
+  rename(RMSE = 1, RMSE_CV = 2)%>%
+  mutate(model_iter = c(1:iter), cal_type = "agree", sample_size = "100")
+
+RMSE_rand_100 <- cbind.data.frame(c(RMSE_rand_df_n100_b1$RMSE, RMSE_rand_df_n100_b2$RMSE), c(RMSE_rand_df_n100_b1$RMSE_CV, RMSE_rand_df_n100_b2$RMSE_CV))%>%
+  rename(RMSE = 1, RMSE_CV = 2)%>%
+  mutate(model_iter = c(1:iter),cal_type = "random", sample_size = "100")
+
+RMSE_ks_100 <- cbind.data.frame(c(RMSE_ks_df_n100_b1$RMSE, RMSE_ks_df_n100_b2$RMSE), c(RMSE_ks_df_n100_b1$RMSE_CV, RMSE_ks_df_n100_b2$RMSE_CV))%>%
+  rename(RMSE = 1, RMSE_CV = 2)%>%
+  mutate(model_iter = c(1:iter),cal_type = "kennard-stone", sample_size = "100")
+
+## n = 200
+RMSE_agree_200 <- cbind.data.frame(c(RMSE_agree_df_n200_b1$RMSE, RMSE_agree_df_n200_b2$RMSE), c(RMSE_agree_df_n200_b1$RMSE_CV, RMSE_agree_df_n200_b2$RMSE_CV))%>%
+  rename(RMSE = 1, RMSE_CV = 2)%>%
+  mutate(model_iter = c(1:iter), cal_type = "agree", sample_size = "200")
+
+RMSE_rand_200 <- cbind.data.frame(c(RMSE_rand_df_n200_b1$RMSE, RMSE_rand_df_n200_b2$RMSE), c(RMSE_rand_df_n200_b1$RMSE_CV, RMSE_rand_df_n200_b2$RMSE_CV))%>%
+  rename(RMSE = 1, RMSE_CV = 2)%>%
+  mutate(model_iter = c(1:iter),cal_type = "random", sample_size = "200")
+
+RMSE_ks_200 <- cbind.data.frame(c(RMSE_ks_df_n200_b1$RMSE, RMSE_ks_df_n200_b2$RMSE), c(RMSE_ks_df_n200_b1$RMSE_CV, RMSE_ks_df_n200_b2$RMSE_CV))%>%
+  rename(RMSE = 1, RMSE_CV = 2)%>%
+  mutate(model_iter = c(1:iter),cal_type = "kennard-stone", sample_size = "200")
+
+## n = 300
+RMSE_agree_300 <- cbind.data.frame(c(RMSE_agree_df_n300_b1$RMSE, RMSE_agree_df_n300_b2$RMSE), c(RMSE_agree_df_n300_b1$RMSE_CV, RMSE_agree_df_n300_b2$RMSE_CV))%>%
+  rename(RMSE = 1, RMSE_CV = 2)%>%
+  mutate(model_iter = c(1:iter), cal_type = "agree", sample_size = "300")
+
+RMSE_rand_300 <- cbind.data.frame(c(RMSE_rand_df_n300_b1$RMSE, RMSE_rand_df_n300_b2$RMSE), c(RMSE_rand_df_n300_b1$RMSE_CV, RMSE_rand_df_n300_b2$RMSE_CV))%>%
+  rename(RMSE = 1, RMSE_CV = 2)%>%
+  mutate(model_iter = c(1:iter),cal_type = "random", sample_size = "300")
+
+RMSE_ks_300 <- cbind.data.frame(c(RMSE_ks_df_n300_b1$RMSE, RMSE_ks_df_n300_b2$RMSE), c(RMSE_ks_df_n300_b1$RMSE_CV, RMSE_ks_df_n300_b2$RMSE_CV))%>%
+  rename(RMSE = 1, RMSE_CV = 2)%>%
+  mutate(model_iter = c(1:iter),cal_type = "kennard-stone", sample_size = "300")
+
+## n = 400
+RMSE_agree_400 <- cbind.data.frame(c(RMSE_agree_df_n400_b1$RMSE, RMSE_agree_df_n400_b2$RMSE), c(RMSE_agree_df_n400_b1$RMSE_CV, RMSE_agree_df_n400_b2$RMSE_CV))%>%
+  rename(RMSE = 1, RMSE_CV = 2)%>%
+  mutate(model_iter = c(1:iter), cal_type = "agree", sample_size = "400")
+
+RMSE_rand_400 <- cbind.data.frame(c(RMSE_rand_df_n400_b1$RMSE, RMSE_rand_df_n400_b2$RMSE), c(RMSE_rand_df_n400_b1$RMSE_CV, RMSE_rand_df_n400_b2$RMSE_CV))%>%
+  rename(RMSE = 1, RMSE_CV = 2)%>%
+  mutate(model_iter = c(1:iter),cal_type = "random", sample_size = "400")
+
+RMSE_ks_400 <- cbind.data.frame(c(RMSE_ks_df_n400_b1$RMSE, RMSE_ks_df_n400_b2$RMSE), c(RMSE_ks_df_n400_b1$RMSE_CV, RMSE_ks_df_n400_b2$RMSE_CV))%>%
+  rename(RMSE = 1, RMSE_CV = 2)%>%
+  mutate(model_iter = c(1:iter),cal_type = "kennard-stone", sample_size = "400")
+
+## n = 500
+RMSE_agree_500 <- cbind.data.frame(c(RMSE_agree_df_n500_b1$RMSE, RMSE_agree_df_n500_b2$RMSE), c(RMSE_agree_df_n500_b1$RMSE_CV, RMSE_agree_df_n500_b2$RMSE_CV))%>%
+  rename(RMSE = 1, RMSE_CV = 2)%>%
+  mutate(model_iter = c(1:iter), cal_type = "agree", sample_size = "500")
+
+RMSE_rand_500 <- cbind.data.frame(c(RMSE_rand_df_n500_b1$RMSE, RMSE_rand_df_n500_b2$RMSE), c(RMSE_rand_df_n500_b1$RMSE_CV, RMSE_rand_df_n500_b2$RMSE_CV))%>%
+  rename(RMSE = 1, RMSE_CV = 2)%>%
+  mutate(model_iter = c(1:iter),cal_type = "random", sample_size = "500")
+
+RMSE_ks_500 <- cbind.data.frame(c(RMSE_ks_df_n500_b1$RMSE, RMSE_ks_df_n500_b2$RMSE), c(RMSE_ks_df_n500_b1$RMSE_CV, RMSE_ks_df_n500_b2$RMSE_CV))%>%
+  rename(RMSE = 1, RMSE_CV = 2)%>%
+  mutate(model_iter = c(1:iter),cal_type = "kennard-stone", sample_size = "500")
+
+## n = 600
+RMSE_agree_600 <- cbind.data.frame(c(RMSE_agree_df_n600_b1$RMSE, RMSE_agree_df_n600_b2$RMSE), c(RMSE_agree_df_n600_b1$RMSE_CV, RMSE_agree_df_n600_b2$RMSE_CV))%>%
+  rename(RMSE = 1, RMSE_CV = 2)%>%
+  mutate(model_iter = c(1:iter), cal_type = "agree", sample_size = "600")
+
+RMSE_rand_600 <- cbind.data.frame(c(RMSE_rand_df_n600_b1$RMSE, RMSE_rand_df_n600_b2$RMSE), c(RMSE_rand_df_n600_b1$RMSE_CV, RMSE_rand_df_n600_b2$RMSE_CV))%>%
+  rename(RMSE = 1, RMSE_CV = 2)%>%
+  mutate(model_iter = c(1:iter),cal_type = "random", sample_size = "600")
+
+RMSE_ks_600 <- cbind.data.frame(c(RMSE_ks_df_n600_b1$RMSE, RMSE_ks_df_n600_b2$RMSE), c(RMSE_ks_df_n600_b1$RMSE_CV, RMSE_ks_df_n600_b2$RMSE_CV))%>%
+  rename(RMSE = 1, RMSE_CV = 2)%>%
+  mutate(model_iter = c(1:iter),cal_type = "kennard-stone", sample_size = "600")
+
+## n = 700
+RMSE_agree_700 <- cbind.data.frame(c(RMSE_agree_df_n700_b1$RMSE, RMSE_agree_df_n700_b2$RMSE), c(RMSE_agree_df_n700_b1$RMSE_CV, RMSE_agree_df_n700_b2$RMSE_CV))%>%
+  rename(RMSE = 1, RMSE_CV = 2)%>%
+  mutate(model_iter = c(1:iter), cal_type = "agree", sample_size = "700")
+
+RMSE_rand_700 <- cbind.data.frame(c(RMSE_rand_df_n700_b1$RMSE, RMSE_rand_df_n700_b2$RMSE), c(RMSE_rand_df_n700_b1$RMSE_CV, RMSE_rand_df_n700_b2$RMSE_CV))%>%
+  rename(RMSE = 1, RMSE_CV = 2)%>%
+  mutate(model_iter = c(1:iter),cal_type = "random", sample_size = "700")
+
+RMSE_ks_700 <- cbind.data.frame(c(RMSE_ks_df_n700_b1$RMSE, RMSE_ks_df_n700_b2$RMSE), c(RMSE_ks_df_n700_b1$RMSE_CV, RMSE_ks_df_n700_b2$RMSE_CV))%>%
+  rename(RMSE = 1, RMSE_CV = 2)%>%
+  mutate(model_iter = c(1:iter),cal_type = "kennard-stone", sample_size = "700")
+
+## n = 800
+RMSE_agree_800 <- cbind.data.frame(c(RMSE_agree_df_n800_b1$RMSE, RMSE_agree_df_n800_b2$RMSE), c(RMSE_agree_df_n800_b1$RMSE_CV, RMSE_agree_df_n800_b2$RMSE_CV))%>%
+  rename(RMSE = 1, RMSE_CV = 2)%>%
+  mutate(model_iter = c(1:iter), cal_type = "agree", sample_size = "800")
+
+RMSE_rand_800 <- cbind.data.frame(c(RMSE_rand_df_n800_b1$RMSE, RMSE_rand_df_n800_b2$RMSE), c(RMSE_rand_df_n800_b1$RMSE_CV, RMSE_rand_df_n800_b2$RMSE_CV))%>%
+  rename(RMSE = 1, RMSE_CV = 2)%>%
+  mutate(model_iter = c(1:iter),cal_type = "random", sample_size = "800")
+
+RMSE_ks_800 <- cbind.data.frame(c(RMSE_ks_df_n800_b1$RMSE, RMSE_ks_df_n800_b2$RMSE), c(RMSE_ks_df_n800_b1$RMSE_CV, RMSE_ks_df_n800_b2$RMSE_CV))%>%
+  rename(RMSE = 1, RMSE_CV = 2)%>%
+  mutate(model_iter = c(1:iter),cal_type = "kennard-stone", sample_size = "800")
+
+## n = 900
+RMSE_agree_900 <- cbind.data.frame(c(RMSE_agree_df_n900_b1$RMSE, RMSE_agree_df_n900_b2$RMSE), c(RMSE_agree_df_n900_b1$RMSE_CV, RMSE_agree_df_n900_b2$RMSE_CV))%>%
+  rename(RMSE = 1, RMSE_CV = 2)%>%
+  mutate(model_iter = c(1:iter), cal_type = "agree", sample_size = "900")
+
+RMSE_rand_900 <- cbind.data.frame(c(RMSE_rand_df_n900_b1$RMSE, RMSE_rand_df_n900_b2$RMSE), c(RMSE_rand_df_n900_b1$RMSE_CV, RMSE_rand_df_n900_b2$RMSE_CV))%>%
+  rename(RMSE = 1, RMSE_CV = 2)%>%
+  mutate(model_iter = c(1:iter),cal_type = "random", sample_size = "900")
+
+RMSE_ks_900 <- cbind.data.frame(c(RMSE_ks_df_n900_b1$RMSE, RMSE_ks_df_n900_b2$RMSE), c(RMSE_ks_df_n900_b1$RMSE_CV, RMSE_ks_df_n900_b2$RMSE_CV))%>%
+  rename(RMSE = 1, RMSE_CV = 2)%>%
+  mutate(model_iter = c(1:iter),cal_type = "kennard-stone", sample_size = "900")
+
+## n = 1000
+RMSE_agree_1000 <- cbind.data.frame(c(RMSE_agree_df_n1000_b1$RMSE, RMSE_agree_df_n1000_b2$RMSE), c(RMSE_agree_df_n1000_b1$RMSE_CV, RMSE_agree_df_n1000_b2$RMSE_CV))%>%
+  rename(RMSE = 1, RMSE_CV = 2)%>%
+  mutate(model_iter = c(1:iter), cal_type = "agree", sample_size = "1000")
+
+RMSE_rand_1000 <- cbind.data.frame(c(RMSE_rand_df_n1000_b1$RMSE, RMSE_rand_df_n1000_b2$RMSE), c(RMSE_rand_df_n1000_b1$RMSE_CV, RMSE_rand_df_n1000_b2$RMSE_CV))%>%
+  rename(RMSE = 1, RMSE_CV = 2)%>%
+  mutate(model_iter = c(1:iter),cal_type = "random", sample_size = "1000")
+
+RMSE_ks_1000 <- cbind.data.frame(c(RMSE_ks_df_n1000_b1$RMSE, RMSE_ks_df_n1000_b2$RMSE), c(RMSE_ks_df_n1000_b1$RMSE_CV, RMSE_ks_df_n1000_b2$RMSE_CV))%>%
+  rename(RMSE = 1, RMSE_CV = 2)%>%
+  mutate(model_iter = c(1:iter),cal_type = "kennard-stone", sample_size = "1000")
+
+## n = 1100
+RMSE_agree_1100 <- cbind.data.frame(c(RMSE_agree_df_n1100_b1$RMSE, RMSE_agree_df_n1100_b2$RMSE), c(RMSE_agree_df_n1100_b1$RMSE_CV, RMSE_agree_df_n1100_b2$RMSE_CV))%>%
+  rename(RMSE = 1, RMSE_CV = 2)%>%
+  mutate(model_iter = c(1:iter), cal_type = "agree", sample_size = "1100")
+
+RMSE_rand_1100 <- cbind.data.frame(c(RMSE_rand_df_n1100_b1$RMSE, RMSE_rand_df_n1100_b2$RMSE), c(RMSE_rand_df_n1100_b1$RMSE_CV, RMSE_rand_df_n1100_b2$RMSE_CV))%>%
+  rename(RMSE = 1, RMSE_CV = 2)%>%
+  mutate(model_iter = c(1:iter),cal_type = "random", sample_size = "1100")
+
+RMSE_ks_1100 <- cbind.data.frame(c(RMSE_ks_df_n1100_b1$RMSE, RMSE_ks_df_n1100_b2$RMSE), c(RMSE_ks_df_n1100_b1$RMSE_CV, RMSE_ks_df_n1100_b2$RMSE_CV))%>%
+  rename(RMSE = 1, RMSE_CV = 2)%>%
+  mutate(model_iter = c(1:iter),cal_type = "kennard-stone", sample_size = "1100")
+
+## n = 11200
+RMSE_agree_1200 <- cbind.data.frame(c(RMSE_agree_df_n1200_b1$RMSE, RMSE_agree_df_n1200_b2$RMSE), c(RMSE_agree_df_n1200_b1$RMSE_CV, RMSE_agree_df_n1200_b2$RMSE_CV))%>%
+  rename(RMSE = 1, RMSE_CV = 2)%>%
+  mutate(model_iter = c(1:iter), cal_type = "agree", sample_size = "1200")
+
+RMSE_rand_1200 <- cbind.data.frame(c(RMSE_rand_df_n1200_b1$RMSE, RMSE_rand_df_n1200_b2$RMSE), c(RMSE_rand_df_n1200_b1$RMSE_CV, RMSE_rand_df_n1200_b2$RMSE_CV))%>%
+  rename(RMSE = 1, RMSE_CV = 2)%>%
+  mutate(model_iter = c(1:iter),cal_type = "random", sample_size = "1200")
+
+RMSE_ks_1200 <- cbind.data.frame(c(RMSE_ks_df_n1200_b1$RMSE, RMSE_ks_df_n1200_b2$RMSE), c(RMSE_ks_df_n1200_b1$RMSE_CV, RMSE_ks_df_n1200_b2$RMSE_CV))%>%
+  rename(RMSE = 1, RMSE_CV = 2)%>%
+  mutate(model_iter = c(1:iter),cal_type = "kennard-stone", sample_size = "1200")
+
+# # n = 1500
+# RMSE_agree_1500 <- rbind(RMSE_agree_df_n1500_b1, RMSE_agree_df_n1500_b2)%>%
+#   mutate(cal_type = "agree", sample_size = "1500")
+# 
+# RMSE_rand_1500 <- rbind(RMSE_rand_df_n1500_b1,  RMSE_rand_df_n1500_b2)%>%
+#    mutate(cal_type = "random", sample_size = "1500")
+# 
+# RMSE_ks_1500 <- rbind(RMSE_ks_df_n1500_b1, RMSE_ks_df_n1500_b2)%>%
+#    mutate(cal_type = "kennard-stone", sample_size = "1500")
+
+# n = 1386
+RMSE_agree_full <- cbind.data.frame(c(RMSE_agree_df_b1$RMSE, RMSE_agree_df_b2$RMSE), c(RMSE_agree_df_b1$RMSE_CV, RMSE_agree_df_b2$RMSE_CV))%>%
+  rename(RMSE = 1, RMSE_CV = 2)%>%
+  mutate(model_iter = c(1:iter), cal_type = "agree", sample_size = "1386")
+
+RMSE_rand_full <- cbind.data.frame(c(RMSE_rand_df_b1$RMSE, RMSE_rand_df_b2$RMSE), c(RMSE_rand_df_b1$RMSE_CV, RMSE_rand_df_b2$RMSE_CV))%>%
+  rename(RMSE = 1, RMSE_CV = 2)%>%
+  mutate(model_iter = c(1:iter),cal_type = "random", sample_size = "1386")
+
+RMSE_ks_full <- cbind.data.frame(c(RMSE_ks_df_b1$RMSE, RMSE_ks_df_b2$RMSE), c(RMSE_ks_df_b1$RMSE_CV, RMSE_ks_df_b2$RMSE_CV))%>%
+  rename(RMSE = 1, RMSE_CV = 2)%>%
+  mutate(model_iter = c(1:iter),cal_type = "kennard-stone", sample_size = "1386")
+
+# Join them all 
+RMSE_all <- full_join(RMSE_agree_100, RMSE_rand_100, by =  c("model_iter", "RMSE", "RMSE_CV", "cal_type", "sample_size"))
+
+RMSE_all <- full_join(RMSE_all, RMSE_ks_100, by = c("model_iter", "RMSE", "RMSE_CV", "cal_type", "sample_size"))
+
+RMSE_all <- full_join(RMSE_all, RMSE_agree_200, by = c("model_iter", "RMSE", "RMSE_CV", "cal_type", "sample_size"))
+
+RMSE_all <- full_join(RMSE_all, RMSE_rand_200, by = c("model_iter", "RMSE", "RMSE_CV", "cal_type", "sample_size"))
+
+RMSE_all <- full_join(RMSE_all, RMSE_ks_200, by = c("model_iter", "RMSE", "RMSE_CV", "cal_type", "sample_size"))
+
+RMSE_all <- full_join(RMSE_all, RMSE_agree_300, by = c("model_iter", "RMSE", "RMSE_CV", "cal_type", "sample_size"))
+
+RMSE_all <- full_join(RMSE_all, RMSE_rand_300, by = c("model_iter", "RMSE", "RMSE_CV", "cal_type", "sample_size"))
+
+RMSE_all <- full_join(RMSE_all, RMSE_ks_300, by = c("model_iter", "RMSE", "RMSE_CV", "cal_type", "sample_size"))
+
+RMSE_all <- full_join(RMSE_all, RMSE_agree_400, by = c("model_iter", "RMSE", "RMSE_CV", "cal_type", "sample_size"))
+
+RMSE_all <- full_join(RMSE_all, RMSE_rand_400, by = c("model_iter", "RMSE", "RMSE_CV", "cal_type", "sample_size"))
+
+RMSE_all <- full_join(RMSE_all, RMSE_ks_400, by = c("model_iter", "RMSE", "RMSE_CV", "cal_type", "sample_size"))
+
+RMSE_all <- full_join(RMSE_all, RMSE_agree_500, by =  c("model_iter", "RMSE", "RMSE_CV", "cal_type", "sample_size"))
+
+RMSE_all <- full_join(RMSE_all, RMSE_rand_500, by =  c("model_iter", "RMSE", "RMSE_CV", "cal_type", "sample_size"))
+
+RMSE_all <- full_join(RMSE_all, RMSE_ks_500, by =  c("model_iter", "RMSE", "RMSE_CV", "cal_type", "sample_size"))
+
+RMSE_all <- full_join(RMSE_all, RMSE_agree_600, by =  c("model_iter", "RMSE", "RMSE_CV", "cal_type", "sample_size"))
+
+RMSE_all <- full_join(RMSE_all, RMSE_rand_600, by =  c("model_iter", "RMSE", "RMSE_CV", "cal_type", "sample_size"))
+
+RMSE_all <- full_join(RMSE_all, RMSE_ks_600, by =  c("model_iter", "RMSE", "RMSE_CV", "cal_type", "sample_size"))
+
+RMSE_all <- full_join(RMSE_all, RMSE_agree_700, by =  c("model_iter", "RMSE", "RMSE_CV", "cal_type", "sample_size"))
+
+RMSE_all <- full_join(RMSE_all, RMSE_rand_700, by =  c("model_iter", "RMSE", "RMSE_CV", "cal_type", "sample_size"))
+
+RMSE_all <- full_join(RMSE_all, RMSE_ks_700, by =  c("model_iter", "RMSE", "RMSE_CV", "cal_type", "sample_size"))
+
+RMSE_all <- full_join(RMSE_all, RMSE_agree_800, by =  c("model_iter", "RMSE", "RMSE_CV", "cal_type", "sample_size"))
+
+RMSE_all <- full_join(RMSE_all, RMSE_rand_800, by =  c("model_iter", "RMSE", "RMSE_CV", "cal_type", "sample_size"))
+
+RMSE_all <- full_join(RMSE_all, RMSE_ks_800, by =  c("model_iter", "RMSE", "RMSE_CV", "cal_type", "sample_size"))
+
+RMSE_all <- full_join(RMSE_all, RMSE_agree_900, by =  c("model_iter", "RMSE", "RMSE_CV", "cal_type", "sample_size"))
+
+RMSE_all <- full_join(RMSE_all, RMSE_rand_900, by =  c("model_iter", "RMSE", "RMSE_CV", "cal_type", "sample_size"))
+
+RMSE_all <- full_join(RMSE_all, RMSE_ks_900, by =  c("model_iter", "RMSE", "RMSE_CV", "cal_type", "sample_size"))
+
+RMSE_all <- full_join(RMSE_all, RMSE_agree_1000, by =  c("model_iter", "RMSE", "RMSE_CV", "cal_type", "sample_size"))
+
+RMSE_all <- full_join(RMSE_all, RMSE_rand_1000, by =  c("model_iter", "RMSE", "RMSE_CV", "cal_type", "sample_size"))
+
+RMSE_all <- full_join(RMSE_all, RMSE_ks_1000, by =  c("model_iter", "RMSE", "RMSE_CV", "cal_type", "sample_size"))
+
+# RMSE_all <- full_join(RMSE_all, RMSE_agree_1500, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+# 
+# RMSE_all <- full_join(RMSE_all, RMSE_rand_1500, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+# 
+# RMSE_all <- full_join(RMSE_all, RMSE_ks_1500, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+# 
+# RMSE_all <- full_join(RMSE_all, RMSE_agree_1500, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+# 
+# RMSE_all <- full_join(RMSE_all, RMSE_rand_1500, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+# 
+# RMSE_all <- full_join(RMSE_all, RMSE_ks_1500, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+
+RMSE_all <- full_join(RMSE_all, RMSE_agree_full, by =  c("model_iter", "RMSE", "RMSE_CV", "cal_type", "sample_size"))
+
+RMSE_all <- full_join(RMSE_all, RMSE_rand_full, by =  c("model_iter", "RMSE", "RMSE_CV", "cal_type", "sample_size"))
+
+RMSE_all <- full_join(RMSE_all, RMSE_ks_full, by =  c("model_iter", "RMSE", "RMSE_CV", "cal_type", "sample_size"))
+
+RMSE_all <- full_join(RMSE_all, RMSE_agree_1100, by =  c("model_iter", "RMSE", "RMSE_CV", "cal_type", "sample_size"))
+
+RMSE_all <- full_join(RMSE_all, RMSE_rand_1100, by =  c("model_iter", "RMSE", "RMSE_CV", "cal_type", "sample_size"))
+
+RMSE_all <- full_join(RMSE_all, RMSE_ks_1100, by =  c("model_iter", "RMSE", "RMSE_CV", "cal_type", "sample_size"))
+
+RMSE_all <- full_join(RMSE_all, RMSE_agree_1200, by =  c("model_iter", "RMSE", "RMSE_CV", "cal_type", "sample_size"))
+
+RMSE_all <- full_join(RMSE_all, RMSE_rand_1200, by =  c("model_iter", "RMSE", "RMSE_CV", "cal_type", "sample_size"))
+
+RMSE_all <- full_join(RMSE_all, RMSE_ks_1200, by =  c("model_iter", "RMSE", "RMSE_CV", "cal_type", "sample_size"))
+
+
+RMSE_all$cal_type <- factor(RMSE_all$cal_type, levels = c("agree", "random", "kennard-stone"))
+
+RMSE_all$sample_size <- factor(RMSE_all$sample_size, levels = c("100", "200", "300", "400", "500", "600", "700", "800", "900", "1000", "1100", "1200", "1386"), ordered = T)
+
+ggplot(RMSE_all, aes(sample_size, RMSE, color = cal_type))+
+  geom_violin(trim = F)+
+  #geom_dotplot(binaxis='y', stackdir='center', dotsize=.1, fill = "grey", position = position_dodge(.9))+
+  scale_color_manual(values = c("grey90", "grey60", "black"))+
+  geom_abline(data = filter(RMSE_all, sample_size == "1386" & cal_type == "kennard-stone"), slope = 0, intercept = mean(RMSE_all$RMSE))+
+  #geom_dotplot(data = RMSE_all_ho %>% filter(cal_type == "kennard-stone"), aes(cal_type, RMSE), binaxis='y', stackdir='center', dotsize=1)+
+  labs(x = "Calibration selection approach",
+       y = "Root mean square error of predictions")+
+  theme_classic()
+
+
+```
+
+Figure 3. Violin plots (kernal density) comparing root mean square errors between three calibration selection approaches to predict ages for each paired validation set. This is shown for calibration sample sizes 100 - 1386. Each have 200 iterations. The black line shows the average RMSE of the best performing calibration selection approach and sample size on the hold out data set (Kennard-Stone approach, n = 1386).
+
+#### Application to a hold out data set
+
+I then applied the calibration sets selected via each method and at each sample size to the hold out data set (n = 7272). This was to simulate using a calibration model on "new" incoming data in an operational scenario. Each approach has 200 calibration models fit on 200 simulated data sets at each sample size that are each being used to predict ages for the hold out data set that stays constant. I then calculated the RMSE of the predicted ages vs. reference ages in each scenario to evaluate the predictive accuracy of the model. This resulted in 200 RMSE values per method, per sample size.
+
+```{r}
+#| echo: false
+#| warning: false
+#| fig-width: 10
+
+#Load all files
+
+# full
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_ho_batch1.rda")
+RMSE_agree_df_b1 <- RMSE_agree_df_100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_ho_batch2.rda")
+RMSE_agree_df_b2 <- RMSE_agree_df_100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_ho_batch1.rda")
+RMSE_rand_df_b1 <- RMSE_rand_df_100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_ho_batch2.rda")
+RMSE_rand_df_b2 <- RMSE_rand_df_100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_holdout_batch1.rda")
+RMSE_ks_df_b1 <- RMSE_ks_df_100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_holdout_batch2.rda")
+RMSE_ks_df_b2 <- RMSE_ks_df_100_ho
+
+# n = 100
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n100_ho_batch1.rda")
+RMSE_agree_df_n100_b1 <- RMSE_agree_df_100_n100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n100_ho_batch2.rda")
+RMSE_agree_df_n100_b2 <- RMSE_agree_df_100_n100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n100_ho_batch1.rda")
+RMSE_rand_df_n100_b1 <- RMSE_rand_df_100_n100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n100_ho_batch2.rda")
+RMSE_rand_df_n100_b2 <- RMSE_rand_df_100_n100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_n100_holdout_batch1.rda")
+RMSE_ks_df_n100_b1 <- RMSE_ks_df_100_n100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_n100_holdout_batch2.rda")
+RMSE_ks_df_n100_b2 <- RMSE_ks_df_100_n100_ho
+
+# n = 200
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n200_ho_batch1.rda")
+RMSE_agree_df_n200_b1 <- RMSE_agree_df_100_n200_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n200_ho_batch2.rda")
+RMSE_agree_df_n200_b2 <- RMSE_agree_df_100_n200_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n200_ho_batch1.rda")
+RMSE_rand_df_n200_b1 <- RMSE_rand_df_100_n200_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n200_ho_batch2.rda")
+RMSE_rand_df_n200_b2 <- RMSE_rand_df_100_n200_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_n200_holdout_batch1.rda")
+RMSE_ks_df_n200_b1 <- RMSE_ks_df_100_n200_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_n200_holdout_batch2.rda")
+RMSE_ks_df_n200_b2 <- RMSE_ks_df_100_n200_ho
+
+# n = 300
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n300_ho_batch1.rda")
+RMSE_agree_df_n300_b1 <- RMSE_agree_df_100_n300_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n300_ho_batch2.rda")
+RMSE_agree_df_n300_b2 <- RMSE_agree_df_100_n300_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n300_ho_batch1.rda")
+RMSE_rand_df_n300_b1 <- RMSE_rand_df_100_n300_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n300_ho_batch2.rda")
+RMSE_rand_df_n300_b2 <- RMSE_rand_df_100_n300_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_n300_holdout_batch1.rda")
+RMSE_ks_df_n300_b1 <- RMSE_ks_df_100_n300_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_n300_holdout_batch2.rda")
+RMSE_ks_df_n300_b2 <- RMSE_ks_df_100_n300_ho
+
+# n = 400
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n400_ho_batch1.rda")
+RMSE_agree_df_n400_b1 <- RMSE_agree_df_100_n400_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n400_ho_batch2.rda")
+RMSE_agree_df_n400_b2 <- RMSE_agree_df_100_n400_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n400_ho_batch1.rda")
+RMSE_rand_df_n400_b1 <- RMSE_rand_df_100_n400_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n400_ho_batch2.rda")
+RMSE_rand_df_n400_b2 <- RMSE_rand_df_100_n400_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_n400_holdout_batch1.rda")
+RMSE_ks_df_n400_b1 <- RMSE_ks_df_100_n400_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_n400_holdout_batch2.rda")
+RMSE_ks_df_n400_b2 <- RMSE_ks_df_100_n400_ho
+
+# n = 500
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n500_ho_batch1.rda")
+RMSE_rand_df_n500_b1 <- RMSE_rand_df_100_n500_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n500_ho_batch2.rda")
+RMSE_rand_df_n500_b2 <- RMSE_rand_df_100_n500_ho
+
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n500_ho_batch1.rda")
+RMSE_agree_df_n500_b1 <- RMSE_agree_df_100_n500_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n500_ho_batch2.rda")
+RMSE_agree_df_n500_b2 <- RMSE_agree_df_100_n500_ho
+
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_100_n500_holdout_batch1.rda")
+RMSE_ks_df_n500_b1 <- RMSE_ks_df_100_n500_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_100_n500_holdout_batch2.rda")
+RMSE_ks_df_n500_b2 <- RMSE_ks_df_100_n500_ho
+
+# n = 600
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n600_ho_batch1.rda")
+RMSE_rand_df_n600_b1 <- RMSE_rand_df_100_n600_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n600_ho_batch2.rda")
+RMSE_rand_df_n600_b2 <- RMSE_rand_df_100_n600_ho
+
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n600_ho_batch1.rda")
+RMSE_agree_df_n600_b1 <- RMSE_agree_df_100_n600_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n600_ho_batch2.rda")
+RMSE_agree_df_n600_b2 <- RMSE_agree_df_100_n600_ho
+
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_100_n600_holdout_batch1.rda")
+RMSE_ks_df_n600_b1 <- RMSE_ks_df_100_n600_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_100_n600_holdout_batch2.rda")
+RMSE_ks_df_n600_b2 <- RMSE_ks_df_100_n600_ho
+
+# n = 700
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n700_ho_batch1.rda")
+RMSE_rand_df_n700_b1 <- RMSE_rand_df_100_n700_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n700_ho_batch2.rda")
+RMSE_rand_df_n700_b2 <- RMSE_rand_df_100_n700_ho
+
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n700_ho_batch1.rda")
+RMSE_agree_df_n700_b1 <- RMSE_agree_df_100_n700_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n700_ho_batch2.rda")
+RMSE_agree_df_n700_b2 <- RMSE_agree_df_100_n700_ho
+
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_100_n700_holdout_batch1.rda")
+RMSE_ks_df_n700_b1 <- RMSE_ks_df_100_n700_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_100_n700_holdout_batch2.rda")
+RMSE_ks_df_n700_b2 <- RMSE_ks_df_100_n700_ho
+
+# n = 800
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n800_ho_batch1.rda")
+RMSE_rand_df_n800_b1 <- RMSE_rand_df_100_n800_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n800_ho_batch2.rda")
+RMSE_rand_df_n800_b2 <- RMSE_rand_df_100_n800_ho
+
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n800_ho_batch1.rda")
+RMSE_agree_df_n800_b1 <- RMSE_agree_df_100_n800_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n800_ho_batch2.rda")
+RMSE_agree_df_n800_b2 <- RMSE_agree_df_100_n800_ho
+
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_100_n800_holdout_batch1.rda")
+RMSE_ks_df_n800_b1 <- RMSE_ks_df_100_n800_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_100_n800_holdout_batch2.rda")
+RMSE_ks_df_n800_b2 <- RMSE_ks_df_100_n800_ho
+
+# n = 900
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n900_ho_batch1.rda")
+RMSE_rand_df_n900_b1 <- RMSE_rand_df_100_n900_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n900_ho_batch2.rda")
+RMSE_rand_df_n900_b2 <- RMSE_rand_df_100_n900_ho
+
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n900_ho_batch1.rda")
+RMSE_agree_df_n900_b1 <- RMSE_agree_df_100_n900_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n900_ho_batch2.rda")
+RMSE_agree_df_n900_b2 <- RMSE_agree_df_100_n900_ho
+
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_100_n900_holdout_batch1.rda")
+RMSE_ks_df_n900_b1 <- RMSE_ks_df_100_n900_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_100_n900_holdout_batch2.rda")
+RMSE_ks_df_n900_b2 <- RMSE_ks_df_100_n900_ho
+
+# n = 1000
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n1000_ho_batch1.rda")
+RMSE_rand_df_n1000_b1 <- RMSE_rand_df_100_n1000_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n1000_ho_batch2.rda")
+RMSE_rand_df_n1000_b2 <- RMSE_rand_df_100_n1000_ho
+
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n1000_ho_batch1.rda")
+RMSE_agree_df_n1000_b1 <- RMSE_agree_df_100_n1000_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n1000_ho_batch2.rda")
+RMSE_agree_df_n1000_b2 <- RMSE_agree_df_100_n1000_ho
+
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_n1000_holdout_batch1.rda")
+RMSE_ks_df_n1000_b1 <- RMSE_ks_df_100_n1000_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_n1000_holdout_batch2.rda")
+RMSE_ks_df_n1000_b2 <- RMSE_ks_df_100_n1000_ho
+
+# n = 1100
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n1100_ho_batch1.rda")
+RMSE_rand_df_n1100_b1 <- RMSE_rand_df_100_n1100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n1100_ho_batch2.rda")
+RMSE_rand_df_n1100_b2 <- RMSE_rand_df_100_n1100_ho
+
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n1100_ho_batch1.rda")
+RMSE_agree_df_n1100_b1 <- RMSE_agree_df_100_n1100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n1100_ho_batch2.rda")
+RMSE_agree_df_n1100_b2 <- RMSE_agree_df_100_n1100_ho
+
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_100_n1100_holdout_batch1.rda")
+RMSE_ks_df_n1100_b1 <- RMSE_ks_df_100_n1100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_100_n1100_holdout_batch2.rda")
+RMSE_ks_df_n1100_b2 <- RMSE_ks_df_100_n1100_ho
+
+# n = 1200
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n1200_ho_batch1.rda")
+RMSE_rand_df_n1200_b1 <- RMSE_rand_df_100_n1200_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n1200_ho_batch2.rda")
+RMSE_rand_df_n1200_b2 <- RMSE_rand_df_100_n1200_ho
+
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n1200_ho_batch1.rda")
+RMSE_agree_df_n1200_b1 <- RMSE_agree_df_100_n1200_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n1200_ho_batch2.rda")
+RMSE_agree_df_n1200_b2 <- RMSE_agree_df_100_n1200_ho
+
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_100_n1200_holdout_batch1.rda")
+RMSE_ks_df_n1200_b1 <- RMSE_ks_df_100_n1200_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_100_n1200_holdout_batch2.rda")
+RMSE_ks_df_n1200_b2 <- RMSE_ks_df_100_n1200_ho
+
+# load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n1500_ho_batch1.rda")
+# RMSE_rand_df_n1500_b1 <- RMSE_rand_df_100_n1500_ho
+# load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n1500_ho_batch2.rda")
+# RMSE_rand_df_n1500_b2 <- RMSE_rand_df_100_n1500_ho
+
+# load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n1500_ho_batch1.rda")
+# RMSE_agree_df_n1500_b1 <- RMSE_agree_df_100_n1500_ho
+# load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n1500_ho_batch2.rda")
+# RMSE_agree_df_n1500_b2 <- RMSE_agree_df_100_n1500_ho
+# 
+# load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_n1500_holdout_batch1.rda")
+# RMSE_ks_df_n1500_b1 <- RMSE_ks_df_100_n1500_ho
+# load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_n1500_holdout_batch2.rda")
+# RMSE_ks_df_n1500_b2 <- RMSE_ks_df_100_n1500_ho
+
+# Plot error from models used to predict hold out dataset
+## n = 100
+RMSE_agree_100 <- rbind(RMSE_agree_df_n100_b1, RMSE_agree_df_n100_b2)%>%
+  mutate(cal_type = "agree", sample_size = "100")
+
+RMSE_rand_100 <- rbind(RMSE_rand_df_n100_b1, RMSE_rand_df_n100_b2)%>%
+  mutate(cal_type = "random", sample_size = "100")
+
+RMSE_ks_100 <- rbind(RMSE_ks_df_n100_b1, RMSE_ks_df_n100_b2)%>%
+  mutate(cal_type = "kennard-stone", sample_size = "100")
+
+## n = 200
+RMSE_agree_200 <- rbind(RMSE_agree_df_n200_b1, RMSE_agree_df_n200_b2)%>%
+  mutate(cal_type = "agree", sample_size = "200")
+
+RMSE_rand_200 <- rbind(RMSE_rand_df_n200_b1, RMSE_rand_df_n200_b2)%>%
+  mutate(cal_type = "random", sample_size = "200")
+
+RMSE_ks_200 <- rbind(RMSE_ks_df_n200_b1, RMSE_ks_df_n200_b2)%>%
+  mutate(cal_type = "kennard-stone", sample_size = "200")
+
+## n = 300
+RMSE_agree_300 <- rbind(RMSE_agree_df_n300_b1, RMSE_agree_df_n300_b2)%>%
+  mutate(cal_type = "agree", sample_size = "300")
+
+RMSE_rand_300 <- rbind(RMSE_rand_df_n300_b1, RMSE_rand_df_n300_b2)%>%
+  mutate(cal_type = "random", sample_size = "300")
+
+RMSE_ks_300 <- rbind(RMSE_ks_df_n300_b1, RMSE_ks_df_n300_b2)%>%
+  mutate(cal_type = "kennard-stone", sample_size = "300")
+
+## n = 400
+RMSE_agree_400 <- rbind(RMSE_agree_df_n400_b1, RMSE_agree_df_n400_b1)%>%
+  mutate(cal_type = "agree", sample_size = "400")
+
+RMSE_rand_400 <- rbind(RMSE_rand_df_n400_b1, RMSE_rand_df_n400_b2)%>%
+  mutate(cal_type = "random", sample_size = "400")
+
+RMSE_ks_400 <- rbind(RMSE_ks_df_n400_b1, RMSE_ks_df_n400_b2)%>%
+  mutate(cal_type = "kennard-stone", sample_size = "400")
+
+## n = 500
+RMSE_agree_500 <- rbind(RMSE_agree_df_n500_b1, RMSE_agree_df_n500_b2)%>%
+  mutate(cal_type = "agree", sample_size = "500")
+
+RMSE_rand_500 <- rbind(RMSE_rand_df_n500_b1, RMSE_rand_df_n500_b2)%>%
+  mutate(cal_type = "random", sample_size = "500")
+
+RMSE_ks_500 <- rbind(RMSE_ks_df_n500_b1, RMSE_ks_df_n500_b2)%>%
+  mutate(cal_type = "kennard-stone", sample_size = "500")
+
+## n = 600
+RMSE_agree_600 <- rbind(RMSE_agree_df_n600_b1, RMSE_agree_df_n600_b2)%>%
+  mutate(cal_type = "agree", sample_size = "600")
+
+RMSE_rand_600 <- rbind(RMSE_rand_df_n600_b1, RMSE_rand_df_n600_b2)%>%
+  mutate(cal_type = "random", sample_size = "600")
+
+RMSE_ks_600 <- rbind(RMSE_ks_df_n600_b1, RMSE_ks_df_n600_b2)%>%
+  mutate(cal_type = "kennard-stone", sample_size = "600")
+
+## n = 700
+RMSE_agree_700 <- rbind(RMSE_agree_df_n700_b1, RMSE_agree_df_n700_b2)%>%
+  mutate(cal_type = "agree", sample_size = "700")
+
+RMSE_rand_700 <- rbind(RMSE_rand_df_n700_b1, RMSE_rand_df_n700_b2)%>%
+  mutate(cal_type = "random", sample_size = "700")
+
+RMSE_ks_700 <- rbind(RMSE_ks_df_n700_b1, RMSE_ks_df_n700_b2)%>%
+  mutate(cal_type = "kennard-stone", sample_size = "700")
+
+## n = 800
+RMSE_agree_800 <- rbind(RMSE_agree_df_n800_b1, RMSE_agree_df_n800_b2)%>%
+  mutate(cal_type = "agree", sample_size = "800")
+
+RMSE_rand_800 <- rbind(RMSE_rand_df_n800_b1, RMSE_rand_df_n800_b2)%>%
+  mutate(cal_type = "random", sample_size = "800")
+
+RMSE_ks_800 <- rbind(RMSE_ks_df_n800_b1, RMSE_ks_df_n800_b2)%>%
+  mutate(cal_type = "kennard-stone", sample_size = "800")
+
+## n = 900
+RMSE_agree_900 <- rbind(RMSE_agree_df_n900_b1, RMSE_agree_df_n900_b2)%>%
+  mutate(cal_type = "agree", sample_size = "900")
+
+RMSE_rand_900 <- rbind(RMSE_rand_df_n900_b1, RMSE_rand_df_n900_b2)%>%
+  mutate(cal_type = "random", sample_size = "900")
+
+RMSE_ks_900 <- rbind(RMSE_ks_df_n900_b1, RMSE_ks_df_n900_b2)%>%
+  mutate(cal_type = "kennard-stone", sample_size = "900")
+
+## n = 1000
+RMSE_agree_1000 <- rbind(RMSE_agree_df_n1000_b1, RMSE_agree_df_n1000_b2)%>%
+  mutate(cal_type = "agree", sample_size = "1000")
+
+RMSE_rand_1000 <- rbind(RMSE_rand_df_n1000_b1, RMSE_rand_df_n1000_b2)%>%
+  mutate(cal_type = "random", sample_size = "1000")
+
+RMSE_ks_1000 <- rbind(RMSE_ks_df_n1000_b1, RMSE_ks_df_n1000_b2)%>%
+  mutate(cal_type = "kennard-stone", sample_size = "1000")
+
+## n = 1100
+RMSE_agree_1100 <- rbind(RMSE_agree_df_n1100_b1, RMSE_agree_df_n1100_b2)%>%
+  mutate(cal_type = "agree", sample_size = "1100")
+
+RMSE_rand_1100 <- rbind(RMSE_rand_df_n1100_b1, RMSE_rand_df_n1100_b2)%>%
+  mutate(cal_type = "random", sample_size = "1100")
+
+RMSE_ks_1100 <- rbind(RMSE_ks_df_n1100_b1, RMSE_ks_df_n1100_b2)%>%
+  mutate(cal_type = "kennard-stone", sample_size = "1100")
+
+## n = 1200
+RMSE_agree_1200 <- rbind(RMSE_agree_df_n1200_b1, RMSE_agree_df_n1200_b2)%>%
+  mutate(cal_type = "agree", sample_size = "1200")
+
+RMSE_rand_1200 <- rbind(RMSE_rand_df_n1200_b1, RMSE_rand_df_n1200_b2)%>%
+  mutate(cal_type = "random", sample_size = "1200")
+
+RMSE_ks_1200 <- rbind(RMSE_ks_df_n1200_b1, RMSE_ks_df_n1200_b2)%>%
+  mutate(cal_type = "kennard-stone", sample_size = "1200")
+
+# # n = 1500
+# RMSE_agree_1500 <- rbind(RMSE_agree_df_n1500_b1, RMSE_agree_df_n1500_b2)%>%
+#   mutate(cal_type = "agree", sample_size = "1500")
+# 
+# RMSE_rand_1500 <- rbind(RMSE_rand_df_n1500_b1,  RMSE_rand_df_n1500_b2)%>%
+#    mutate(cal_type = "random", sample_size = "1500")
+# 
+# RMSE_ks_1500 <- rbind(RMSE_ks_df_n1500_b1, RMSE_ks_df_n1500_b2)%>%
+#    mutate(cal_type = "kennard-stone", sample_size = "1500")
+
+# n = 1386
+RMSE_agree_full <- rbind(RMSE_agree_df_b1, RMSE_agree_df_b2)%>%
+  mutate(cal_type = "agree", sample_size = "1386")
+
+RMSE_rand_full<- rbind(RMSE_rand_df_b1, RMSE_rand_df_b2)%>%
+  mutate(cal_type = "random", sample_size = "1386")
+
+RMSE_ks_full <- rbind(RMSE_ks_df_b1, RMSE_ks_df_b2)%>%
+  mutate(cal_type = "kennard-stone", sample_size = "1386")
+
+# Join them all 
+RMSE_all_ho <- full_join(RMSE_agree_100, RMSE_rand_100, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+
+RMSE_all_ho <- full_join(RMSE_all_ho, RMSE_ks_100, by = c("model_iter", "RMSE", "cal_type", "sample_size"))
+
+RMSE_all_ho <- full_join(RMSE_all_ho, RMSE_agree_200, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+
+RMSE_all_ho <- full_join(RMSE_all_ho, RMSE_rand_200, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+
+RMSE_all_ho <- full_join(RMSE_all_ho, RMSE_ks_200, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+
+RMSE_all_ho <- full_join(RMSE_all_ho, RMSE_agree_300, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+
+RMSE_all_ho <- full_join(RMSE_all_ho, RMSE_rand_300, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+
+RMSE_all_ho <- full_join(RMSE_all_ho, RMSE_ks_300, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+
+RMSE_all_ho <- full_join(RMSE_all_ho, RMSE_agree_400, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+
+RMSE_all_ho <- full_join(RMSE_all_ho, RMSE_rand_400, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+
+RMSE_all_ho <- full_join(RMSE_all_ho, RMSE_ks_400, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+
+RMSE_all_ho <- full_join(RMSE_all_ho, RMSE_agree_500, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+
+RMSE_all_ho <- full_join(RMSE_all_ho, RMSE_rand_500, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+
+RMSE_all_ho <- full_join(RMSE_all_ho, RMSE_ks_500, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+
+RMSE_all_ho <- full_join(RMSE_all_ho, RMSE_agree_600, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+
+RMSE_all_ho <- full_join(RMSE_all_ho, RMSE_rand_600, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+
+RMSE_all_ho <- full_join(RMSE_all_ho, RMSE_ks_600, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+
+RMSE_all_ho <- full_join(RMSE_all_ho, RMSE_agree_700, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+
+RMSE_all_ho <- full_join(RMSE_all_ho, RMSE_rand_700, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+
+RMSE_all_ho <- full_join(RMSE_all_ho, RMSE_ks_700, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+
+RMSE_all_ho <- full_join(RMSE_all_ho, RMSE_agree_800, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+
+RMSE_all_ho <- full_join(RMSE_all_ho, RMSE_rand_800, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+
+RMSE_all_ho <- full_join(RMSE_all_ho, RMSE_ks_800, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+
+RMSE_all_ho <- full_join(RMSE_all_ho, RMSE_agree_900, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+
+RMSE_all_ho <- full_join(RMSE_all_ho, RMSE_rand_900, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+
+RMSE_all_ho <- full_join(RMSE_all_ho, RMSE_ks_900, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+
+RMSE_all_ho <- full_join(RMSE_all_ho, RMSE_agree_1000, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+
+RMSE_all_ho <- full_join(RMSE_all_ho, RMSE_rand_1000, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+
+RMSE_all_ho <- full_join(RMSE_all_ho, RMSE_ks_1000, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+
+RMSE_all_ho <- full_join(RMSE_all_ho, RMSE_agree_1100, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+
+RMSE_all_ho <- full_join(RMSE_all_ho, RMSE_rand_1100, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+
+RMSE_all_ho <- full_join(RMSE_all_ho, RMSE_ks_1100, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+
+RMSE_all_ho <- full_join(RMSE_all_ho, RMSE_agree_1200, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+
+RMSE_all_ho <- full_join(RMSE_all_ho, RMSE_rand_1200, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+
+RMSE_all_ho <- full_join(RMSE_all_ho, RMSE_ks_1200, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+
+# RMSE_all <- full_join(RMSE_all, RMSE_agree_1500, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+# 
+# RMSE_all <- full_join(RMSE_all, RMSE_rand_1500, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+# 
+# RMSE_all <- full_join(RMSE_all, RMSE_ks_1500, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+# 
+# RMSE_all <- full_join(RMSE_all, RMSE_agree_1500, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+# 
+# RMSE_all <- full_join(RMSE_all, RMSE_rand_1500, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+# 
+# RMSE_all <- full_join(RMSE_all, RMSE_ks_1500, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+
+RMSE_all_ho <- full_join(RMSE_all_ho, RMSE_agree_full, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+
+RMSE_all_ho <- full_join(RMSE_all_ho, RMSE_rand_full, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+
+RMSE_all_ho <- full_join(RMSE_all_ho, RMSE_ks_full, by =  c("model_iter", "RMSE", "cal_type", "sample_size"))
+
+
+RMSE_all_ho$cal_type <- factor(RMSE_all_ho$cal_type, levels = c("agree", "random", "kennard-stone"))
+
+RMSE_all_ho$sample_size <- factor(RMSE_all_ho$sample_size, levels = c("100", "200", "300", "400", "500", "600", "700", "800", "900", "1000", "1100", "1200", "1386"), ordered = "T")
+
+# Plot
+pdf(file = "C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/Figures/Figure 1.pdf",   # The directory you want to save the file in
+    width = 6, # The width of the plot in inches
+    height = 4) # The height of the plot in inches
+
+ggplot(RMSE_all_ho, aes(sample_size, RMSE, color = cal_type, fill = cal_type))+
+  geom_violin(trim = F)+
+  #geom_dotplot(binaxis='y', stackdir='center', dotsize=.1, fill = "grey", position = position_dodge(.9))+
+  scale_color_manual(values = c("grey80", "grey40", "black"))+
+  scale_fill_manual(values = alpha(c("grey80", "grey40", "black"), .3))+
+  #geom_dotplot(data = RMSE_all_ho %>% filter(cal_type == "kennard-stone"), aes(cal_type, RMSE), binaxis='y', stackdir='center', dotsize=1)+
+  labs(x = "Calibration Sample Size",
+       y = "Root Mean Square Error of Predictions")+
+  guides(color = "none", fill = "none")+
+  theme_classic()
+
+dev.off()
+
+```
+
+Figure 4. Violin plots (kernal density) comparing root mean square errors between three calibration selection approaches to predict ages for the hold out data set. This is shown for calibration sample sizes 100 - 1386 at intervals of 500. Each has 200 iterations.
+
+### Results
+
+The results of this simulation suggest that model predictive accuracy (represented by RMSE) can vary depending on what samples are included in the model calibration set. Different approaches to selecting these samples have different considerations.
+
+#### Proof-of-concept application
+
+Overall, the range in RMSE values for each calibration selection approach declined between n = 100 and n = 600, suggesting less variability in the projected model performance on new data. However, this improvement in consistency was most notable between n = 100 and n = 300. Between n=300 and n=600, the range in model performance began to stabilize. As calibration sample size increased to n \> 600, the range in RMSE started to increase again for the Kennard-Stone approach and the random selection approach. The range in RMSE values for the agree ages approach remained relatively stable.
+
+The improved consistency (reduction in range of RMSE values) in model performance for all methods between sample sizes of n = 100 and n = 600 is likely because as larger calibration sample sizes were selected, there were fewer possible combinations. For example at n=100, by random chance a calibration sample set may be selected with with a non-representative data set (i.e. all only large fish, or a lot of extreme spectra relative to their reference age). At n = 600, we were resampling close to half of the full double read data and therefore more likely to end up with a more representative data set in each iteration. The simultaneous improvement in predictive accuracy (decrease in RMSE values on average) between n = 100 and n = 600 was likely because the larger calibration data sets encompassed more of the spectral variation in the full double read data set (n = 2055), and improved model predictive skill on the samples in the paired validation sets.
+
+The increasing variability in model performance (increasing range of RMSE values) for the random approach and the Kennard-Stone approach at sample sizes greater than n = 600 may be due to increasing variability in the paired validation data sets. While the calibration sample sizes increase, inversely, the size of each paired validation set decreases. This may introduce a different source of variation in RMSE since the calculation is also impacted by what samples are included in the validation set. This aligns with the variability in agree ages model performance remaining more stable - this approach only draws from the samples in the double read data set where both the age reader and test reader agreed on age (n = 1386). This left n = 669 samples that remained constant in every validation set for the agree ages approach, while the other two approaches resampled from the full double read data set (n = 2055) each iteration.
+
+With respect to model predictive skill, the Kennard-Stone algorithm approach also resulted in RMSE values that were comparable to the other two methods at low sample sizes (n\<= 200) and lower on average than the other two methods for sample sizes n \>= 300. This suggests that the Kennard-Stone approach to selecting calibration data sets resulted in models with better predictive performance on their paired validation sets on average than either of the other two approaches, except for at low sample sizes (n=\<200) where it was comparable.
+
+However, in a proof-of-concept scenario, it is not necessarily the "best" predictive performance on a paired validation set you are after - instead it is usually a representative predictive performance that is a good estimate of model performance on new, unseen data.
+
+When we compared the RMSE values in this proof-of-concept application to the asymptotic average RMSE value when the same models were used to predict the new, unseen "hold out" data, it suggests that in most scenarios, the proof of concept study over-estimated model predictive performance.
+
+#### Operational scenario
+
+Overall, when the same calibration sets were used to predict fish age for the hold out data set (n = 7575) to represent predictive skill in an operational capacity, the best and most consistent model performance was achieved using the Kennard-Stone algorithm approach at the highest sample size (n = 1386). The most variability in model performance was for sample size n \< 500 sample size of n=500 and there were negligible gains over n = 900. This approach resulted in models with predictive error (RMSE) values between 1.0x-1.0x at the largest sample size. This indicates that \~68% of age predictions fell within 1.0x and 1.0x year of the traditionally estimated reference age. Though there was near full overlap among the Kennard-Stone approach and the other two approaches along the full range of sample sizes, the agree ages and random selection approaches had larger ranges in RMSE values that encompassed models with poorer predictive performance than the Kennard-Stone approach. Of the three approaches, the agree ages approach resulted a range that encompassed the poorest models at calibration sample sizes over n=500.
+
+The calibration data set with the best predictive skill on the hold out data set was achieved using the Kennard-Stone approach with a sample size of n = 200. This suggests that it is feasible to get a good predictive model using a low calibration sample size, however the large range in RMSE values also suggests that it is not reliable and depends largerly on your data set.
+
+#### Summary
+
+Overall, the Kennard-Stone algorithm approach to selecting calibration data sets resulted in PLS models with the best predictive skill on average - both in a proof-of-concept application as well as an operational scenario. This was especially true for calibration sample size of n \>= 600 for walleye pollock.
+
+However in a proof-of-concept scenario, the goal is not to attain the best predictive model on a validation set, but to get a good estimate of predictive skill of the model on new, unseen data. None of these approaches consistently produced calibration models whose predictions on their paired validation sets were representative of their predictive accuracy on new, unseen data. Because of this, I evaluated a fourth method for evaluating predictive performance in a proof-of-concept scenario - calculating the RMSE of k-fold cross-validation of each calibration model.
+
+```{r}
+#| echo: false
+#| warning: false
+#| fig-width: 10
+
+
+ggplot(RMSE_all, aes(sample_size, RMSE_CV, color = cal_type))+
+  geom_violin(trim = F)+
+  #geom_dotplot(binaxis='y', stackdir='center', dotsize=.1, fill = "grey", position = position_dodge(.9))+
+  scale_color_manual(values = c("grey80", "grey60", "black"))+
+  geom_abline(data = filter(RMSE_all, sample_size == "1386" & cal_type == "kennard-stone"), slope = 0, intercept = mean(RMSE_all$RMSE_CV))+
+  #geom_dotplot(data = RMSE_all_ho %>% filter(cal_type == "kennard-stone"), aes(cal_type, RMSE), binaxis='y', stackdir='center', dotsize=1)+
+  labs(x = "Calibration selection approach",
+       y = "Root mean square error of predictions")+
+  theme_classic()
+
+```
+
+Figure 6. Need to add description. Black line is the average of the "best" calibration selection approach (Kennard-Stone) at the highest sample size (n=1386). Shows how each of these approaches at various sample sizes compare in and that CV if anything is a conservative estimate which is BETTER than an overly optimistic one at low sample sizes.
+
+Make a plot of Kennard-Stone calibration CV vs it's performance on hold out data set.
+
+Agree ages: CV vs. Hold out; Random CV vs Hold out
+
+```{r}
+#| echo: false
+#| warning: false
+
+ggplot()+
+    geom_violin(data = filter(RMSE_all, cal_type == "agree"), aes(sample_size, RMSE),color = "grey",trim = F)+
+    geom_violin(data = filter(RMSE_all_ho, cal_type == "agree"), aes(sample_size, RMSE),color = "black", trim = F)+
+  #geom_dotplot(binaxis='y', stackdir='center', dotsize=.1, fill = "grey", position = position_dodge(.9))+
+  #geom_dotplot(data = RMSE_all_ho %>% filter(cal_type == "kennard-stone"), aes(cal_type, RMSE), binaxis='y', stackdir='center', dotsize=1)+
+  labs(x = "Calibration sample size",
+       y = "Root mean square error of val vs HO predictions")+
+  theme_classic()
+
+ggplot()+
+    geom_violin(data = filter(RMSE_all, cal_type == "agree"), aes(sample_size, RMSE_CV),color = "grey",trim = F)+
+    geom_violin(data = filter(RMSE_all_ho, cal_type == "agree"), aes(sample_size, RMSE),color = "black", trim = F)+
+  #geom_dotplot(binaxis='y', stackdir='center', dotsize=.1, fill = "grey", position = position_dodge(.9))+
+  #geom_dotplot(data = RMSE_all_ho %>% filter(cal_type == "kennard-stone"), aes(cal_type, RMSE), binaxis='y', stackdir='center', dotsize=1)+
+  labs(x = "Calibration selection approach",
+       y = "Root mean square error of CV vs HO predictions")+
+  theme_classic()
+
+```
+
+```{r}
+#| echo: false
+#| warning: false
+
+pdf(file = "C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/Figures/Figure 3a.pdf",   # The directory you want to save the file in
+    width = 6, # The width of the plot in inches
+    height = 4) # The height of the plot in inches
+
+ggplot()+
+    geom_violin(data = filter(RMSE_all, cal_type == "random"), aes(sample_size, RMSE),color = "grey",trim = F)+
+    geom_violin(data = filter(RMSE_all_ho, cal_type == "random"), aes(sample_size, RMSE),color = "black", trim = F)+
+  scale_y_continuous(limits = c(0.8,2.1))+
+  #geom_dotplot(binaxis='y', stackdir='center', dotsize=.1, fill = "grey", position = position_dodge(.9))+
+  #geom_dotplot(data = RMSE_all_ho %>% filter(cal_type == "kennard-stone"), aes(cal_type, RMSE), binaxis='y', stackdir='center', dotsize=1)+
+  labs(x = "Calibration Sample Size",
+       y = "Root Mean Square Error of Predictions")+
+  theme_classic()
+
+dev.off()
+
+pdf(file = "C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/Figures/Figure 2a.pdf",   # The directory you want to save the file in
+    width = 6, # The width of the plot in inches
+    height = 4) # The height of the plot in inches
+
+ggplot()+
+    geom_violin(data = filter(RMSE_all, cal_type == "random"), aes(sample_size, RMSE_CV),color = "grey",trim = F)+
+    geom_violin(data = filter(RMSE_all_ho, cal_type == "random"), aes(sample_size, RMSE),color = "black", trim = F)+
+  scale_y_continuous(limits = c(0.8,2.1))+
+  #geom_dotplot(binaxis='y', stackdir='center', dotsize=.1, fill = "grey", position = position_dodge(.9))+
+  #geom_dotplot(data = RMSE_all_ho %>% filter(cal_type == "kennard-stone"), aes(cal_type, RMSE), binaxis='y', stackdir='center', dotsize=1)+
+  labs(x = "Calibration Sample Size",
+       y = "Root Mean Square Error of Predictions")+
+  theme_classic()
+
+dev.off()
+```
+
+```{r}
+#| echo: false
+#| warning: false
+
+pdf(file = "C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/Figures/Figure 3b.pdf",   # The directory you want to save the file in
+    width = 6, # The width of the plot in inches
+    height = 4) # The height of the plot in inches
+
+ggplot()+
+    geom_violin(data = filter(RMSE_all, cal_type == "kennard-stone"), aes(sample_size, RMSE),color = "grey",trim = F)+
+    geom_violin(data = filter(RMSE_all_ho, cal_type == "kennard-stone"), aes(sample_size, RMSE),color = "black", trim = F)+
+  scale_y_continuous(limits = c(0.8,2.1))+
+  #geom_dotplot(binaxis='y', stackdir='center', dotsize=.1, fill = "grey", position = position_dodge(.9))+
+  #geom_dotplot(data = RMSE_all_ho %>% filter(cal_type == "kennard-stone"), aes(cal_type, RMSE), binaxis='y', stackdir='center', dotsize=1)+
+  labs(x = "Calibration Sample Size",
+       y = "Root Mean Square Error of Predictions")+
+  theme_classic()
+
+dev.off()
+
+pdf(file = "C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/Figures/Figure 2b.pdf",   # The directory you want to save the file in
+    width = 6, # The width of the plot in inches
+    height = 4) # The height of the plot in inches
+
+ggplot()+
+    geom_violin(data = filter(RMSE_all, cal_type == "kennard-stone"), aes(sample_size, RMSE_CV),color = "grey",trim = F)+
+    geom_violin(data = filter(RMSE_all_ho, cal_type == "kennard-stone"), aes(sample_size, RMSE),color = "black", trim = F)+
+  scale_y_continuous(limits = c(0.8,2.1))+
+  #geom_dotplot(binaxis='y', stackdir='center', dotsize=.1, fill = "grey", position = position_dodge(.9))+
+  #geom_dotplot(data = RMSE_all_ho %>% filter(cal_type == "kennard-stone"), aes(cal_type, RMSE), binaxis='y', stackdir='center', dotsize=1)+
+  labs(x = "Calibration Sample Size",
+       y = "Root Mean Square Error of Predictions")+
+  theme_classic()
+
+dev.off()
+```
+
+Guidance for sample sizes 500 or greater: - if doing proof-of-concept, do k-fold cross-validation on your full data set to get a better idea of predictive ability on new, unseen data. - if in an operational scenario with a large data set of spectra and are choosing which to traditionally age to include in a calibration model, use the Kennard-Stone algorithm. - if in an operational scenario with a large collection of samples with traditional ages, but not spectra - use the random approach for selecting a calibration set to scan for building a calibration set, not the agree ages approach.
+
+Guidance for sample sizes 500 or less: probably the same?
+
+## 2. Exploring characteristics of best and worst calibration sets (n=100)
+
+We compared characteristics including age distribution, spatial distribution, collection year, and collection type (survey vs. fishery) between the best performing model calibration data set (that had the highest predictive accuracy on the hold out data set) and the worst performing model calibration data set (had the lowest predictive accuracy on the hold out data set).
+
+### Agree age selection method
+
+#### Best calibration set - age distribution, spatial distribution, collection type (fishery vs. survey) (n=100)
+
+```{r}
+#| echo: false
+#| warning: false
+
+# To check the characteristics of the "worst models" - age distribution, spatial distribution, fishery vs. survey
+
+# Load RMSE
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n100_ho_batch1.rda")
+RMSE_agree_df_b1 <- RMSE_agree_df_100_n100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_n100_ho_batch2.rda")
+RMSE_agree_df_b2 <- RMSE_agree_df_100_n100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n100_ho_batch1.rda")
+RMSE_rand_df_b1 <- RMSE_rand_df_100_n100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_n100_ho_batch2.rda")
+RMSE_rand_df_b2 <- RMSE_rand_df_100_n100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_n100_holdout_batch1.rda")
+RMSE_ks_df_b1 <- RMSE_ks_df_100_n100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_n100_holdout_batch2.rda")
+RMSE_ks_df_b2 <- RMSE_ks_df_100_n100_ho
+
+# Join
+RMSE_agree_ho <- rbind(RMSE_agree_df_b1, RMSE_agree_df_b2)
+
+RMSE_rand_ho <- rbind(RMSE_rand_df_b1, RMSE_rand_df_b2)
+
+RMSE_ks_ho <- rbind(RMSE_ks_df_b1, RMSE_ks_df_b2)
+
+# Plot for cutoffs
+## Make cutoffs all .81 to standardized converatively
+# ggplot(RMSE_agree_ho)+
+#   geom_boxplot(aes(RMSE)) #cutoff .81
+# 
+# ggplot(RMSE_rand_ho)+
+#   geom_boxplot(aes(RMSE)) #cutoff .81
+# 
+# ggplot(RMSE_ks_ho)+
+#   geom_boxplot(aes(RMSE)) #cutoff .81
+
+# Index for best calibration from each method
+index_best_agree <- which.min(RMSE_agree_ho$RMSE)
+index_best_rand <- which.min(RMSE_rand_ho$RMSE)
+index_best_ks <- which.min(RMSE_ks_ho$RMSE)
+
+# Index numbers for worst calibrations from each method
+index_bad_agree <- which.max(RMSE_agree_ho$RMSE) #can also use which() with a cutoff for more calibration sets
+index_bad_rand <- which.max(RMSE_rand_ho$RMSE)
+index_bad_ks <- which.max(RMSE_ks_ho$RMSE) 
+  
+# Load calibration set lists and filter by index
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/train_sets_agree_n100_batch1.rda")
+train_sets_agree_b1 <- train_sets_agree
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/train_sets_agree_n100_batch2.rda")
+train_sets_agree_b2 <- train_sets_agree
+train_sets_agree <- c(train_sets_agree_b1, train_sets_agree_b2)
+
+best_train_agree <- train_sets_agree[[index_best_agree]]
+bad_train_agree <- train_sets_agree[[index_bad_agree]]
+rm(train_sets_agree_b1)
+rm(train_sets_agree_b2)
+rm(train_sets_agree)
+
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/train_sets_rand_n100_batch1.rda")
+train_sets_rand_b1 <- train_sets_rand
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/train_sets_rand_n100_batch2.rda")
+train_sets_rand_b2 <- train_sets_rand
+train_sets_rand <- c(train_sets_rand_b1, train_sets_rand_b2)
+
+best_train_rand <- train_sets_rand[[index_best_rand]]
+bad_train_rand <- train_sets_rand[[index_bad_rand]]
+rm(train_sets_rand)
+rm(train_sets_rand_b1)
+rm(train_sets_rand_b2)
+
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/train_sets_ks_n100_batch1.rda")
+train_sets_ks_b1 <- train_sets_ks
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/train_sets_ks_n100_batch2.rda")
+train_sets_ks_b2 <- train_sets_ks
+train_sets_ks <- c(train_sets_ks_b1, train_sets_ks_b2)
+
+best_train_ks <- train_sets_ks[[index_best_ks]]
+bad_train_ks <- train_sets_ks[[index_bad_ks]]
+rm(train_sets_ks)
+rm(train_sets_ks_b1)
+rm(train_sets_ks_b2)
+
+# How do I look at distributions and stuff...age, spatial, fishery/survey
+#
+p1 <- ggplot(best_train_agree)+
+  geom_bar(aes(final_age))
+
+p2 <- ggplot(best_train_agree)+
+  geom_point(aes(longitude, latitude))
+
+p3 <- ggplot(best_train_agree)+
+  geom_bar(aes(collection_year))
+
+best_train_agree <- best_train_agree%>%
+  mutate(col_type = ifelse(vessel_code %in% c("162", "94"), "Survey", "Fishery"))
+
+p4 <- ggplot(best_train_agree)+
+  geom_bar(aes(col_type))
+
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+```
+
+#### Worst calibration sets - age distribution, spatial distribution, collection year, collection type (n=100)
+
+```{r}
+#| echo: false
+#| warning: false
+
+p1 <- ggplot(bad_train_agree)+
+  geom_bar(aes(final_age))
+
+p2 <- ggplot(bad_train_agree)+
+  geom_point(aes(longitude, latitude))
+
+p3 <- ggplot(bad_train_agree)+
+  geom_bar(aes(collection_year))
+
+bad_train_agree <- bad_train_agree%>%
+  mutate(col_type = ifelse(vessel_code %in% c("162", "94"), "Survey", "Fishery"))
+
+p4 <- ggplot(bad_train_agree)+
+  geom_bar(aes(col_type))
+
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+
+```
+
+### Random selection method
+
+#### Best calibration set - age distribution, spatial distribution, collection year, collection type (survey vs. fishery) (n=100)
+
+```{r}
+#| echo: false
+#| warning: false
+
+# How do I look at distributions and stuff...age, spatial, fishery/survey
+#
+p1 <- ggplot(best_train_rand)+
+  geom_bar(aes(final_age))
+
+p2 <- ggplot(best_train_rand)+
+  geom_point(aes(longitude, latitude))
+
+p3 <- ggplot(best_train_rand)+
+  geom_bar(aes(collection_year))
+
+
+best_train_rand <- best_train_rand%>%
+  mutate(col_type = ifelse(vessel_code %in% c("162", "94"), "Survey", "Fishery"))
+
+p4 <- ggplot(best_train_rand)+
+  geom_bar(aes(col_type))
+
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+```
+
+#### Worst calibration sets - age distribution, spatial distribution, collection year, collection type (survey vs. fishery) (n=100)
+
+```{r}
+#| echo: false
+#| warning: false
+
+# How do I look at distributions and stuff...age, spatial, fishery/survey
+#
+p1 <- ggplot(bad_train_rand)+
+  geom_bar(aes(final_age))
+
+p2 <- ggplot(bad_train_rand)+
+  geom_point(aes(longitude, latitude))
+
+p3 <- ggplot(bad_train_rand)+
+  geom_bar(aes(collection_year))
+
+
+bad_train_rand <- bad_train_rand%>%
+  mutate(col_type = ifelse(vessel_code %in% c("162", "94"), "Survey", "Fishery"))
+
+p4 <- ggplot(bad_train_rand)+
+  geom_bar(aes(col_type))
+
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+```
+
+### Kennard-Stone selection method
+
+#### Best calibration sets - age distribution, spatial distribution, collection year, collection type (survey vs. fishery) (n=100)
+
+```{r}
+#| echo: false
+#| warning: false
+
+# How do I look at distributions and stuff…age, spatial, fishery/survey
+#
+p1 <- ggplot(best_train_ks)+
+  geom_bar(aes(final_age))
+
+p2 <- ggplot(best_train_ks)+
+  geom_point(aes(longitude, latitude))
+
+p3 <- ggplot(best_train_ks)+
+  geom_bar(aes(collection_year))
+
+best_train_ks <- best_train_ks%>%
+  mutate(col_type = ifelse(vessel_code %in% c("162", "94"), "Survey", "Fishery"))
+
+p4 <- ggplot(best_train_ks)+
+  geom_bar(aes(col_type))
+
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+```
+
+#### Worst calibration sets - age distribution, spatial distribution, collection year, collection type (survey vs. fishery) (n=100)
+
+```{r}
+#| echo: false
+#| warning: false
+
+# How do I look at distributions and stuff…age, spatial, fishery/survey
+#
+p1 <- ggplot(bad_train_ks)+
+  geom_bar(aes(final_age))
+
+p2 <- ggplot(bad_train_ks)+
+  geom_point(aes(longitude, latitude))
+
+p3 <- ggplot(bad_train_ks)+
+  geom_bar(aes(collection_year))
+
+bad_train_ks <- bad_train_ks%>%
+  mutate(col_type = ifelse(vessel_code %in% c("162", "94"), "Survey", "Fishery"))
+
+p4 <- ggplot(bad_train_ks)+
+  geom_bar(aes(col_type))
+
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+```
+
+## 3. Exploring characteristics of best and worst calibration sets (n=1386)
+
+We compared characteristics including age distribution, spatial distribution, collection year, and collection type (survey vs. fishery) between the best performing model calibration data set (that had the highest predictive accuracy on the hold out data set) and the worst performing model calibration data set (had the lowest predictive accuracy on the hold out data set).
+
+### Agree age selection method
+
+#### Best calibration set - age distribution, spatial distribution, collection type (fishery vs. survey) (n=1386)
+
+```{r}
+#| echo: false
+#| warning: false
+
+# To check the characteristics of the "worst models" - age distribution, spatial distribution, fishery vs. survey
+
+# Load RMSE
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_ho_batch1.rda")
+RMSE_agree_df_b1 <- RMSE_agree_df_100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_agree_df_100_ho_batch2.rda")
+RMSE_agree_df_b2 <- RMSE_agree_df_100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_ho_batch1.rda")
+RMSE_rand_df_b1 <- RMSE_rand_df_100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_rand_df_100_ho_batch2.rda")
+RMSE_rand_df_b2 <- RMSE_rand_df_100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_holdout_batch1.rda")
+RMSE_ks_df_b1 <- RMSE_ks_df_100_ho
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/RMSE_ks_df_holdout_batch2.rda")
+RMSE_ks_df_b2 <- RMSE_ks_df_100_ho
+
+# Join
+RMSE_agree_ho <- rbind(RMSE_agree_df_b1, RMSE_agree_df_b2)
+
+RMSE_rand_ho <- rbind(RMSE_rand_df_b1, RMSE_rand_df_b2)
+
+RMSE_ks_ho <- rbind(RMSE_ks_df_b1, RMSE_ks_df_b2)
+
+# Plot for cutoffs
+## Make cutoffs all .81 to standardized converatively
+# ggplot(RMSE_agree_df_100_ho)+
+#   geom_boxplot(aes(RMSE)) #cutoff .81
+# 
+# ggplot(RMSE_rand_df_100_ho)+
+#   geom_boxplot(aes(RMSE)) #cutoff .81
+# 
+# ggplot(RMSE_ks_df_100_ho)+
+#   geom_boxplot(aes(RMSE)) #cutoff .81
+
+# Index for best calibration from each method
+index_best_agree <- which.min(RMSE_agree_ho$RMSE)
+index_best_rand <- which.min(RMSE_rand_ho$RMSE)
+index_best_ks <- which.min(RMSE_ks_ho$RMSE)
+
+# Index numbers for worst calibrations from each method
+index_bad_agree <- which.max(RMSE_agree_ho$RMSE) #can also use which() with a cutoff for more calibration sets
+index_bad_rand <- which.max(RMSE_rand_ho$RMSE)
+index_bad_ks <- which.max(RMSE_ks_ho$RMSE) 
+  
+# Load calibration set lists and filter by index
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/train_sets_agree_batch1.rda")
+train_sets_agree_b1 <- train_sets_agree
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/train_sets_agree_batch2.rda")
+train_sets_agree_b2 <- train_sets_agree
+train_sets_agree <- c(train_sets_agree_b1, train_sets_agree_b2)
+
+best_train_agree <- train_sets_agree[[index_best_agree]]
+bad_train_agree <- train_sets_agree[[index_bad_agree]]
+rm(train_sets_agree_b1)
+rm(train_sets_agree_b2)
+rm(train_sets_agree)
+
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/train_sets_rand_batch1.rda")
+train_sets_rand_b1 <- train_sets_rand
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/train_sets_rand_batch2.rda")
+train_sets_rand_b2 <- train_sets_rand
+train_sets_rand <- c(train_sets_rand_b1, train_sets_rand_b2)
+
+best_train_rand <- train_sets_rand[[index_best_rand]]
+bad_train_rand <- train_sets_rand[[index_bad_rand]]
+rm(train_sets_rand)
+rm(train_sets_rand_b1)
+rm(train_sets_rand_b2)
+
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/train_sets_ks_batch1.rda")
+train_sets_ks_b1 <- train_sets_ks
+load("C:/Users/marri/OneDrive/Documents/AFSC A&G Contract/Simulation Project/Model-best-practices/dependency-files/train_sets_ks_batch2.rda")
+train_sets_ks_b2 <- train_sets_ks
+train_sets_ks <- c(train_sets_ks_b1, train_sets_ks_b2)
+
+best_train_ks <- train_sets_ks[[index_best_ks]]
+bad_train_ks <- train_sets_ks[[index_bad_ks]]
+rm(train_sets_ks)
+rm(train_sets_ks_b1)
+rm(train_sets_ks_b2)
+
+# How do I look at distributions and stuff...age, spatial, fishery/survey
+#
+p1 <- ggplot(best_train_agree)+
+  geom_bar(aes(final_age))
+
+p2 <- ggplot(best_train_agree)+
+  geom_point(aes(longitude, latitude))
+
+p3 <- ggplot(best_train_agree)+
+  geom_bar(aes(collection_year))
+
+best_train_agree <- best_train_agree%>%
+  mutate(col_type = ifelse(vessel_code %in% c("162", "94"), "Survey", "Fishery"))
+
+p4 <- ggplot(best_train_agree)+
+  geom_bar(aes(col_type))
+
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+```
+
+#### Worst calibration sets - age distribution, spatial distribution, collection year, collection type (survey vs. fishery) (n=1386)
+
+```{r}
+#| echo: false
+#| warning: false
+
+p1 <- ggplot(bad_train_agree)+
+  geom_bar(aes(final_age))
+
+p2 <- ggplot(bad_train_agree)+
+  geom_point(aes(longitude, latitude))
+
+p3 <- ggplot(bad_train_agree)+
+  geom_bar(aes(collection_year))
+
+bad_train_agree <- bad_train_agree%>%
+  mutate(col_type = ifelse(vessel_code %in% c("162", "94"), "Survey", "Fishery"))
+
+p4 <- ggplot(bad_train_agree)+
+  geom_bar(aes(col_type))
+
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+
+```
+
+### Random selection method
+
+#### Best calibration set - age distribution, spatial distribution, collection year, collection type (survey vs. fishery) (n=1386)
+
+```{r}
+#| echo: false
+#| warning: false
+
+# How do I look at distributions and stuff...age, spatial, fishery/survey
+#
+p1 <- ggplot(best_train_rand)+
+  geom_bar(aes(final_age))
+
+p2 <- ggplot(best_train_rand)+
+  geom_point(aes(longitude, latitude))
+
+p3 <- ggplot(best_train_rand)+
+  geom_bar(aes(collection_year))
+
+
+best_train_rand <- best_train_rand%>%
+  mutate(col_type = ifelse(vessel_code %in% c("162", "94"), "Survey", "Fishery"))
+
+p4 <- ggplot(best_train_rand)+
+  geom_bar(aes(col_type))
+
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+```
+
+#### Worst calibration sets - aage distribution, spatial distribution, collection year, collection type (survey vs. fishery) (n=1386)
+
+```{r}
+#| echo: false
+#| warning: false
+
+# How do I look at distributions and stuff...age, spatial, fishery/survey
+#
+p1 <- ggplot(bad_train_rand)+
+  geom_bar(aes(final_age))
+
+p2 <- ggplot(bad_train_rand)+
+  geom_point(aes(longitude, latitude))
+
+p3 <- ggplot(bad_train_rand)+
+  geom_bar(aes(collection_year))
+
+
+bad_train_rand <- bad_train_rand%>%
+  mutate(col_type = ifelse(vessel_code %in% c("162", "94"), "Survey", "Fishery"))
+
+p4 <- ggplot(bad_train_rand)+
+  geom_bar(aes(col_type))
+
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+```
+
+### Kennard-Stone selection method
+
+#### Best calibration sets - age distribution, spatial distribution, collection year, collection type (survey vs. fishery) (n=1386)
+
+```{r}
+#| echo: false
+#| warning: false
+
+# How do I look at distributions and stuff…age, spatial, fishery/survey
+#
+p1 <- ggplot(best_train_ks)+
+  geom_bar(aes(final_age))
+
+p2 <- ggplot(best_train_ks)+
+  geom_point(aes(longitude, latitude))
+
+p3 <- ggplot(best_train_ks)+
+  geom_bar(aes(collection_year))
+
+best_train_ks <- best_train_ks%>%
+  mutate(col_type = ifelse(vessel_code %in% c("162", "94"), "Survey", "Fishery"))
+
+p4 <- ggplot(best_train_ks)+
+  geom_bar(aes(col_type))
+
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+```
+
+#### Worst calibration sets - age distribution, spatial distribution, collection year, collection type (survey vs. fishery) (n=1386)
+
+```{r}
+#| echo: false
+#| warning: false
+
+# How do I look at distributions and stuff…age, spatial, fishery/survey
+#
+p1 <- ggplot(bad_train_ks)+
+  geom_bar(aes(final_age))
+
+p2 <- ggplot(bad_train_ks)+
+  geom_point(aes(longitude, latitude))
+
+p3 <- ggplot(bad_train_ks)+
+  geom_bar(aes(collection_year))
+
+bad_train_ks <- bad_train_ks%>%
+  mutate(col_type = ifelse(vessel_code %in% c("162", "94"), "Survey", "Fishery"))
+
+p4 <- ggplot(bad_train_ks)+
+  geom_bar(aes(col_type))
+
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+```
